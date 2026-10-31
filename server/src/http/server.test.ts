@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { createInitialQuestState } from "../../../shared/src/index.js";
 import { openDatabase } from "../store/database.js";
 import { runDemoScenario } from "../demo/scenario.js";
 import { createRelayServer, type RelayServer } from "./server.js";
@@ -123,6 +124,12 @@ describe("HTTP and realtime server", () => {
   });
 
   it("serves the persisted demo story to the overlay and public chain", async () => {
+    const oldQuest = createInitialQuestState(
+      "old-abandoned-quest",
+      "channel-a",
+      Date.now() - 60_000,
+    );
+    relay.repository.save({ ...oldQuest, status: "ABANDONED" });
     const demo = runDemoScenario(database, {
       questId: "demo-http-integration",
       sourceChannelId: "channel-a",
@@ -137,6 +144,15 @@ describe("HTTP and realtime server", () => {
     expect(overlay.statusCode).toBe(200);
     expect(overlay.json()).toMatchObject({
       state: { id: demo.questId, status: "COMPLETED", partySize: 37 },
+      simulated: true,
+    });
+    const sourceOverlay = await relay.app.inject({
+      method: "GET",
+      url: "/api/overlay/channel-a",
+      headers: { "x-overlay-key": config.overlayKey },
+    });
+    expect(sourceOverlay.json()).toMatchObject({
+      state: { id: demo.questId, status: "COMPLETED" },
       simulated: true,
     });
 

@@ -331,9 +331,9 @@ export class QuestRepository {
   findLatestQuestByChannel(channelId: string): QuestState | null {
     const row = this.database
       .prepare(
-        "SELECT id FROM quests WHERE current_channel_id = ? OR source_channel_id = ? ORDER BY CASE WHEN current_channel_id = ? THEN 0 ELSE 1 END, updated_at DESC, created_at DESC LIMIT 1",
+        "SELECT id FROM quests WHERE current_channel_id = ? OR source_channel_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT 1",
       )
-      .get(channelId, channelId, channelId) as { id: string } | undefined;
+      .get(channelId, channelId) as { id: string } | undefined;
     return row ? this.get(row.id) : null;
   }
 

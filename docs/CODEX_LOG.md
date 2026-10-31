@@ -91,4 +91,5 @@
 
 - Reviewed the user's dashboard, overlay, and chain screenshots. The chain views matched the intended persisted history; the overlay displayed an empty story area and “Name pending” for an `ABANDONED` quest.
 - Added an explicit closed-story overlay card and status chip for abandoned quests. The translucent overlay canvas is intentional for OBS compositing.
-- Verification: typecheck, lint, web build, Prettier, and `git diff --check` passed. Full suite: 76 passed; 3 loopback WebSocket tests failed with `listen EPERM`. The user's local browser was not available for a post-change visual check.
+- Found that channel snapshot selection preferred any quest where the channel was current over a newer quest where it was the source. Changed it to choose by most recent update and added a regression assertion that the source overlay follows the completed demo despite an older abandoned quest.
+- Verification: targeted source-overlay regression passed; typecheck, lint, server build, web build, Prettier, and `git diff --check` passed. Full suite: 76 passed; 3 loopback WebSocket tests failed with `listen EPERM`. The user's local browser was not available for a post-change visual check.
