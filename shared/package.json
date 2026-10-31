@@ -1,0 +1,11 @@
+{
+  "name": "@raid-relay/shared",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
+  }
+}

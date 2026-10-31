@@ -1,0 +1,37 @@
+{
+  "name": "raid-relay",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @raid-relay/server --filter @raid-relay/web dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @raid-relay/server start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "demo": "pnpm --filter @raid-relay/server demo",
+    "twitch:auth": "node --import tsx/esm scripts/twitch-auth.ts",
+    "twitch:smoke": "node --import tsx/esm scripts/twitch-smoke.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^24.10.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@twurple/api": "^7.3.0",
+    "@twurple/auth": "^7.3.0",
+    "@twurple/eventsub-ws": "^7.3.0",
+    "dotenv": "^16.6.1"
+  }
+}
