@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { createServer } from "node:http";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
+import { getTokenInfo } from "@twurple/auth";
 
 const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET } = process.env;
 const redirectUri =
@@ -67,8 +68,35 @@ if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) {
         obtainmentTimestamp: Date.now(),
         scope: token.scope ?? scopes,
       };
+      const tokenInfo = await getTokenInfo(
+        savedToken.accessToken,
+        TWITCH_CLIENT_ID,
+      );
+      if (!tokenInfo.userId)
+        throw new Error("Twitch token has no user identity.");
+      const accountToken = { ...savedToken, userId: tokenInfo.userId };
+      let existingTokens: Array<Record<string, unknown>> = [];
+      try {
+        const existing = JSON.parse(
+          await readFile(tokenFile, "utf8"),
+        ) as unknown;
+        existingTokens = (
+          Array.isArray(existing) ? existing : [existing]
+        ) as Array<Record<string, unknown>>;
+      } catch (error) {
+        if (!(
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "ENOENT"
+        ))
+          throw error;
+      }
+      existingTokens = existingTokens.filter(
+        (entry) => entry.userId !== tokenInfo.userId,
+      );
+      existingTokens.push(accountToken);
       await mkdir(dirname(tokenFile), { recursive: true });
-      await writeFile(tokenFile, JSON.stringify(savedToken, null, 2), {
+      await writeFile(tokenFile, JSON.stringify(existingTokens, null, 2), {
         mode: 0o600,
       });
       const accountHash = createHash("sha256")

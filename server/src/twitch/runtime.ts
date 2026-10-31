@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { ApiClient } from "@twurple/api";
 import { RefreshingAuthProvider, type AccessToken } from "@twurple/auth";
@@ -24,12 +24,29 @@ export interface TwitchRuntimeConfig {
   voterHashSalt: string;
 }
 
-type TokenFile = Partial<AccessToken> & {
+export type TokenFile = Partial<AccessToken> & {
+  userId?: string;
   access_token?: string;
   refresh_token?: string;
   expires_in?: number;
   token_type?: string;
 };
+
+export function parseTwitchTokenFile(value: unknown): TokenFile[] {
+  const entries = Array.isArray(value) ? value : [value];
+  if (
+    entries.length === 0 ||
+    entries.some(
+      (entry) =>
+        typeof entry !== "object" || entry === null || Array.isArray(entry),
+    )
+  ) {
+    throw new Error(
+      "Twitch token file must contain one or more token objects.",
+    );
+  }
+  return entries as TokenFile[];
+}
 
 export function normalizeTwitchToken(value: TokenFile): AccessToken {
   return {
@@ -54,6 +71,8 @@ export class TwitchRuntime {
   };
   private listener: EventSubWsListener | null = null;
   private authProvider: RefreshingAuthProvider | null = null;
+  private tokensByUserId = new Map<string, AccessToken & { userId: string }>();
+  private refreshVersions = new Map<string, number>();
 
   constructor(
     private readonly config: TwitchRuntimeConfig,
@@ -79,31 +98,67 @@ export class TwitchRuntime {
     }
     try {
       const tokenPath = resolve(this.config.tokenFile);
-      const stored = JSON.parse(await readFile(tokenPath, "utf8")) as TokenFile;
-      const token = normalizeTwitchToken(stored);
-      if (!token.accessToken || !token.refreshToken)
-        throw new Error("Token file is missing access or refresh token.");
+      const stored = parseTwitchTokenFile(
+        JSON.parse(await readFile(tokenPath, "utf8")) as unknown,
+      );
       const auth = new RefreshingAuthProvider({
         clientId: this.config.clientId,
         clientSecret: this.config.clientSecret,
       });
       this.authProvider = auth;
-      const persist = async (_userId: string, refreshed: AccessToken) => {
-        await mkdir(dirname(tokenPath), { recursive: true });
-        await writeFile(tokenPath, JSON.stringify(refreshed, null, 2), {
-          mode: 0o600,
-        });
+      let tokensLoaded = false;
+      let refreshPending = false;
+      const queuePersistence = () => {
+        const temporaryPath = `${tokenPath}.${process.pid}.tmp`;
+        this.persistQueue = this.persistQueue
+          .catch(() => undefined)
+          .then(async () => {
+            await mkdir(dirname(tokenPath), { recursive: true });
+            await writeFile(
+              temporaryPath,
+              JSON.stringify([...this.tokensByUserId.values()], null, 2),
+              { mode: 0o600 },
+            );
+            await rename(temporaryPath, tokenPath);
+          });
+        void this.persistQueue.catch(() =>
+          this.fail("Unable to save refreshed Twitch tokens."),
+        );
+      };
+      const persist = (userId: string, refreshed: AccessToken) => {
+        this.tokensByUserId.set(userId, { ...refreshed, userId });
+        this.refreshVersions.set(
+          userId,
+          (this.refreshVersions.get(userId) ?? 0) + 1,
+        );
+        refreshPending = true;
+        if (tokensLoaded) queuePersistence();
       };
       auth.on(auth.onRefresh, persist);
       auth.on(auth.onRefreshFailure, (...args) => {
         void args;
         this.fail("Twitch token refresh failed.");
       });
-      const userId = await auth.addUserForToken(token);
-      if (!auth.getCurrentScopesForUser(userId).includes("user:read:chat"))
-        throw new Error("Twitch token lacks user:read:chat scope.");
+      for (const storedToken of stored) {
+        const token = normalizeTwitchToken(storedToken);
+        if (!token.accessToken || !token.refreshToken)
+          throw new Error(
+            "A Twitch token is missing its access or refresh token.",
+          );
+        const versionsBeforeAdd = new Map(this.refreshVersions);
+        const userId = await auth.addUserForToken(token);
+        if (
+          (this.refreshVersions.get(userId) ?? 0) ===
+          (versionsBeforeAdd.get(userId) ?? 0)
+        ) {
+          this.tokensByUserId.set(userId, { ...token, userId });
+        }
+      }
+      tokensLoaded = true;
+      if (refreshPending) queuePersistence();
+      if (this.tokensByUserId.size === 0)
+        throw new Error("No Twitch user tokens were loaded.");
       const apiClient = new ApiClient({ authProvider: auth });
-      const operatorId = userId;
       const channelMap = new Map<string, string>();
       for (const login of this.config.channels) {
         const user = await apiClient.users.getUserByName(login);
@@ -111,18 +166,29 @@ export class TwitchRuntime {
           throw new Error(
             `Configured Twitch channel could not be resolved: ${login}`,
           );
+        if (!auth.hasUser(user.id))
+          throw new Error(
+            `No Twitch user token is loaded for channel ${login}.`,
+          );
+        if (!auth.getCurrentScopesForUser(user.id).includes("user:read:chat"))
+          throw new Error(
+            `Twitch token for channel ${login} lacks user:read:chat scope.`,
+          );
         channelMap.set(user.id, login);
       }
       const listener = new EventSubWsListener({ apiClient });
       this.listener = listener;
+      const connectedUserIds = new Set<string>();
       listener.on(listener.onUserSocketConnect, (id) => {
-        if (id === operatorId) {
+        if (channelMap.has(id)) connectedUserIds.add(id);
+        if (connectedUserIds.size === channelMap.size) {
           this.health.status = "connected";
           this.health.detail = null;
         }
       });
       listener.on(listener.onUserSocketDisconnect, (id) => {
-        if (id === operatorId && this.health.status !== "error")
+        connectedUserIds.delete(id);
+        if (channelMap.has(id) && this.health.status !== "error")
           this.health.status = "disconnected";
       });
       listener.on(listener.onSubscriptionCreateFailure, (...args) => {
@@ -131,7 +197,9 @@ export class TwitchRuntime {
         this.health.detail = "A Twitch EventSub subscription was rejected.";
       });
       for (const [broadcasterId, channelId] of channelMap) {
-        listener.onChannelChatMessage(broadcasterId, operatorId, (event) => {
+        // Twurple uses the second argument as this subscription's auth context.
+        // Use the broadcaster's own loaded token for chat and outgoing raids.
+        listener.onChannelChatMessage(broadcasterId, broadcasterId, (event) => {
           const now = Date.now();
           const message = normalizeChatFixture({
             message_id: event.messageId,
@@ -192,9 +260,11 @@ export class TwitchRuntime {
       }
       listener.start();
     } catch {
-      this.fail("Twitch setup failed; check local server configuration.");
+      this.fail("Twitch setup failed; check token and channel configuration.");
     }
   }
+
+  private persistQueue: Promise<void> = Promise.resolve();
 
   stop(): void {
     this.listener?.stop();
