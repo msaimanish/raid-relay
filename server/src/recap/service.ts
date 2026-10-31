@@ -20,6 +20,8 @@ export class RecapService {
   constructor(
     private readonly repository: QuestRepository,
     private readonly aiProvider?: RecapProvider,
+    private readonly onProviderError: (error: unknown) => void = () =>
+      undefined,
   ) {}
 
   get(questId: string, state: QuestState): CachedRecap {
@@ -53,7 +55,7 @@ export class RecapService {
           eventId,
         });
       },
-      () => undefined,
+      (error: unknown) => this.onProviderError(error),
     );
   }
 

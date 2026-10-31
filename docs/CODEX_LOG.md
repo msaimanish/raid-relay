@@ -93,3 +93,9 @@
 - Added an explicit closed-story overlay card and status chip for abandoned quests. The translucent overlay canvas is intentional for OBS compositing.
 - Found that channel snapshot selection preferred any quest where the channel was current over a newer quest where it was the source. Changed it to choose by most recent update and added a regression assertion that the source overlay follows the completed demo despite an older abandoned quest.
 - Verification: targeted source-overlay regression passed; typecheck, lint, server build, web build, Prettier, and `git diff --check` passed. Full suite: 76 passed; 3 loopback WebSocket tests failed with `listen EPERM`. The user's local browser was not available for a post-change visual check.
+
+## NVIDIA recap fallback follow-up
+
+- The user's local `.env` had AI enabled and an NVIDIA key, but `AI_MODEL` was misspelled as `nvidia/nemotron-3.5-lightning-30b-a3` (missing the final `b`) and the configured request timeout was 8 seconds. Updated the local ignored `.env` to the published model ID and a 20-second timeout.
+- Raised the application default timeout to 20 seconds and changed recap-provider failures from silently swallowed to a bounded, key-free warning in the server log. Added README troubleshooting guidance. The `.env` and API key remain untracked/ignored.
+- Verification: not run in this turn. The app must be restarted and a fresh demo or raid performed to confirm live NVIDIA inference; remaining failures will now be visible in the backend terminal. Do not claim live NVIDIA verification until that succeeds.

@@ -253,16 +253,29 @@ export async function createRelayServer(
   const database = suppliedDatabase ?? openDatabase(config.databasePath);
   const repository = new QuestRepository(database);
   const channels = config.channels;
+  const app = Fastify({
+    logger: process.env.NODE_ENV !== "test",
+    trustProxy: false,
+  });
   const recapProvider =
     config.aiEnabled && config.nvidiaApiKey && config.aiModel
       ? new NemotronRecapProvider(
           config.nvidiaApiKey,
           config.aiBaseUrl ?? "https://integrate.api.nvidia.com/v1",
           config.aiModel,
-          config.aiTimeoutMs ?? 8000,
+          config.aiTimeoutMs ?? 20000,
         )
       : undefined;
-  const recapService = new RecapService(repository, recapProvider);
+  const recapService = new RecapService(repository, recapProvider, (error) => {
+    const reason =
+      error instanceof Error
+        ? error.message.slice(0, 240)
+        : "Unknown provider error";
+    app.log.warn(
+      { reason },
+      "AI recap request failed; keeping the template recap",
+    );
+  });
   const bus = new RelayEventBus(repository, channels, (raid, questId) => {
     recapService.onRaid(questId, raid.eventId);
   });
@@ -280,10 +293,6 @@ export async function createRelayServer(
     bus,
     repository,
   );
-  const app = Fastify({
-    logger: process.env.NODE_ENV !== "test",
-    trustProxy: false,
-  });
   const webSockets = new WebSocketServer({ noServer: true, maxPayload: 4096 });
   const clients = new Map<
     WebSocket,

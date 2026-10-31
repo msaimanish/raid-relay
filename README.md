@@ -70,7 +70,7 @@ It prints hashed identifiers and raid viewer counts, never chat text or raw user
 
 ## Optional: NVIDIA recap
 
-The deterministic two-sentence recap works without an external provider. To try the optional NVIDIA provider, set `AI_ENABLED=true`, `NVIDIA_API_KEY`, and `AI_MODEL` in `.env`. Provider output is schema-checked and fact-checked; any timeout, provider error, or invalid response falls back to the template. No chat messages, voter identifiers, or secrets are sent as recap facts. Live NVIDIA inference has not been verified for this project.
+The deterministic two-sentence recap works without an external provider. To try the optional NVIDIA provider, set `AI_ENABLED=true`, `NVIDIA_API_KEY`, and `AI_MODEL` in `.env`; `AI_MODEL` must exactly match an NVIDIA model ID. Provider output is schema-checked and fact-checked; any timeout, provider error, or invalid response falls back to the template and logs a short diagnostic in the server terminal. The request timeout defaults to 20 seconds. No chat messages, voter identifiers, or secrets are sent as recap facts. Live NVIDIA inference has not been verified for this project.
 
 ## How it works
 
