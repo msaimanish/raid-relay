@@ -19,14 +19,23 @@ function voterHash(name: string): string {
 }
 
 /** Drives a two-channel scenario through the same app event bus used by Twitch inputs. */
-export function runDemoScenario(database: RelayDatabase): DemoScenarioResult {
-  const questId = "demo-ember-relic";
-  const sourceChannelId = "demo-channel-a";
-  const targetChannelId = "demo-channel-b";
+export function runDemoScenario(
+  database: RelayDatabase,
+  options: {
+    questId?: string;
+    sourceChannelId?: string;
+    targetChannelId?: string;
+    startTime?: number;
+  } = {},
+): DemoScenarioResult {
+  const questId = options.questId ?? "demo-ember-relic";
+  const sourceChannelId = options.sourceChannelId ?? "demo-channel-a";
+  const targetChannelId = options.targetChannelId ?? "demo-channel-b";
+  const at = (relative: number) => relative + (options.startTime ?? 0);
   const repository = new QuestRepository(database);
   if (repository.get(questId))
     throw new Error(`Demo quest ${questId} already exists in this database.`);
-  repository.save(createInitialQuestState(questId, sourceChannelId, 1_000));
+  repository.save(createInitialQuestState(questId, sourceChannelId, at(1_000)));
   const bus = new RelayEventBus(repository, [sourceChannelId, targetChannelId]);
   const sendChat = (
     channelId: string,
@@ -51,68 +60,74 @@ export function runDemoScenario(database: RelayDatabase): DemoScenarioResult {
     {
       type: "quest.command",
       questId,
-      command: { type: "OPEN_NAMING", deadlineAt: 1_045 },
+      command: { type: "OPEN_NAMING", deadlineAt: at(1_045) },
     },
-    1_000,
+    at(1_000),
   );
-  sendChat(sourceChannelId, "alpha", "!name Ember Fox", 1_010);
-  sendChat(sourceChannelId, "beta", "!name ember fox", 1_011);
-  bus.dispatch({ type: "name.review", questId, voteDeadlineAt: 1_090 }, 1_045);
+  sendChat(sourceChannelId, "alpha", "!name Ember Fox", at(1_010));
+  sendChat(sourceChannelId, "beta", "!name ember fox", at(1_011));
+  bus.dispatch(
+    { type: "name.review", questId, voteDeadlineAt: at(1_090) },
+    at(1_045),
+  );
   bus.dispatch(
     {
       type: "name.approve",
       questId,
       actorHash: null,
-      voteDeadlineAt: 1_090,
+      voteDeadlineAt: at(1_090),
     },
-    1_046,
+    at(1_046),
   );
 
-  sendChat(sourceChannelId, "alpha", "!vote protect", 1_050);
-  sendChat(sourceChannelId, "beta", "!vote claim", 1_051);
+  sendChat(sourceChannelId, "alpha", "!vote protect", at(1_050));
+  sendChat(sourceChannelId, "beta", "!vote claim", at(1_051));
   bus.dispatch(
     {
       type: "quest.command",
       questId,
       command: { type: "WINDOW_CLOSED", votes: [] },
     },
-    1_090,
+    at(1_090),
   );
 
   const raid = {
-    eventId: "demo-raid-0001",
+    eventId: `${questId}-raid-0001`,
     sourceChannelId,
     targetChannelId,
     viewers: 37,
     source: "demo" as const,
   };
-  bus.dispatch({ type: "raid.received", raid }, 1_091);
-  const duplicate = bus.dispatch({ type: "raid.received", raid }, 1_092) as {
+  bus.dispatch({ type: "raid.received", raid }, at(1_091));
+  const duplicate = bus.dispatch(
+    { type: "raid.received", raid },
+    at(1_092),
+  ) as {
     duplicate: boolean;
   };
   bus.dispatch(
     { type: "quest.command", questId, command: { type: "ACCEPT_HANDOFF" } },
-    1_093,
+    at(1_093),
   );
   bus.dispatch(
     {
       type: "quest.command",
       questId,
-      command: { type: "OPEN_BEAT2_VOTING", deadlineAt: 1_140 },
+      command: { type: "OPEN_BEAT2_VOTING", deadlineAt: at(1_140) },
     },
-    1_094,
+    at(1_094),
   );
-  sendChat(targetChannelId, "joiner", "!join", 1_095);
-  sendChat(targetChannelId, "joiner", "!vote trade", 1_096);
-  sendChat(targetChannelId, "local-one", "!vote fight", 1_097);
-  sendChat(targetChannelId, "local-two", "!vote fight", 1_098);
+  sendChat(targetChannelId, "joiner", "!join", at(1_095));
+  sendChat(targetChannelId, "joiner", "!vote trade", at(1_096));
+  sendChat(targetChannelId, "local-one", "!vote fight", at(1_097));
+  sendChat(targetChannelId, "local-two", "!vote fight", at(1_098));
   bus.dispatch(
     {
       type: "quest.command",
       questId,
       command: { type: "WINDOW_CLOSED", votes: [] },
     },
-    1_140,
+    at(1_140),
   );
 
   const state = repository.get(questId);

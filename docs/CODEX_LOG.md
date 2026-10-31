@@ -28,3 +28,11 @@
 - Tests added: duplicate raid and unmatched/unconfigured raid handling; missing viewer fallback; dismissed handoff; source-cohort and target-join faction classification; end-to-end scenario with raw viewer count and faction tallies asserted.
 - Bugs found and fixed: made window-close resolution load persisted votes instead of trusting a caller-supplied list; added the final fallback return required by strict TypeScript and removed unused imports found by lint.
 - Verification: typecheck, lint, all 52 tests across 9 files, production build, format check, and `git diff --check` passed. `pnpm demo` completed the A-to-B scenario with 37 raw viewers, medium tier, accepted handoff, faction resolution, completion, and duplicate raid ignored.
+
+## Phase 4 — Realtime server, overlay, dashboard
+
+- Added Fastify REST routes for health, quest creation and lifecycle actions, protected dashboard controls, overlay snapshots, and read-only chain APIs. Added rate limiting, security headers, constrained CORS, constant-time dashboard/overlay key checks, a scheduler for expired windows and welcome hold, and WebSocket snapshot/reconnect plus changed-field updates.
+- Built the transparent OBS overlay, token-protected dashboard, demo controls, and a read-only persisted timeline with raw faction tallies. The interactive demo now plays the A-to-B lifecycle over time through the same event bus and marks simulated inputs.
+- Tests added: 3 HTTP/WebSocket integration tests covering dashboard auth and private-name projection, REST rate limiting, initial WebSocket snapshot, update delivery, and reconnect resync.
+- Bugs found and fixed: prevented pending candidate names from entering overlay snapshots; preserved HTTP rate-limit status codes in the error handler; exposed the demo control in an empty dashboard; corrected demo chain timestamps and local chain links; limited the simulated badge to current-round demo input.
+- Verification: strict typecheck, ESLint, Prettier, shared/server TypeScript builds, Vite production build, `git diff --check`, and all 55 tests across 10 files passed. Browser walkthrough with two local demo channels showed naming, vote, raid welcome, completed outcome, SIMULATED badge, live dashboard updates without refresh, and public chain raw tallies. Live Twitch remains unverified and is Phase 5.

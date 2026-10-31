@@ -3,7 +3,7 @@ import { runDemoScenario } from "./demo/scenario.js";
 
 const database = openDatabase(":memory:");
 try {
-  const result = runDemoScenario(database);
+  const result = runDemoScenario(database, { startTime: Date.now() - 1_000 });
   console.log(
     JSON.stringify(
       {

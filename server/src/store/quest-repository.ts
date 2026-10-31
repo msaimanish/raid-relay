@@ -141,6 +141,18 @@ export class QuestRepository {
     });
   }
 
+  all(): QuestState[] {
+    const rows = this.database
+      .prepare(
+        "SELECT id FROM quests ORDER BY updated_at DESC, created_at DESC",
+      )
+      .all() as Array<{ id: string }>;
+    return rows.flatMap(({ id }) => {
+      const state = this.get(id);
+      return state ? [state] : [];
+    });
+  }
+
   events(questId: string): StoredQuestEvent[] {
     const rows = this.database
       .prepare(
@@ -260,6 +272,15 @@ export class QuestRepository {
     const row = this.database
       .prepare(
         "SELECT id FROM quests WHERE (current_channel_id = ? OR source_channel_id = ?) AND status IN ('DRAFT', 'NAMING_OPEN', 'NAME_PENDING_APPROVAL', 'BEAT1_VOTING', 'AWAITING_RAID', 'HANDOFF_OFFERED', 'WELCOME', 'BEAT2_VOTING') ORDER BY CASE WHEN current_channel_id = ? THEN 0 ELSE 1 END, updated_at DESC, created_at DESC LIMIT 1",
+      )
+      .get(channelId, channelId, channelId) as { id: string } | undefined;
+    return row ? this.get(row.id) : null;
+  }
+
+  findLatestQuestByChannel(channelId: string): QuestState | null {
+    const row = this.database
+      .prepare(
+        "SELECT id FROM quests WHERE current_channel_id = ? OR source_channel_id = ? ORDER BY CASE WHEN current_channel_id = ? THEN 0 ELSE 1 END, updated_at DESC, created_at DESC LIMIT 1",
       )
       .get(channelId, channelId, channelId) as { id: string } | undefined;
     return row ? this.get(row.id) : null;

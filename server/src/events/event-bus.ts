@@ -282,7 +282,17 @@ export class RelayEventBus {
     const event: EngineEvent = {
       type: "demo.input",
       at: now,
-      data: { channelId: message.channelId, commandType, source: "demo" },
+      data: {
+        channelId: message.channelId,
+        commandType,
+        round:
+          state.status === "BEAT1_VOTING"
+            ? 1
+            : state.status === "WELCOME" || state.status === "BEAT2_VOTING"
+              ? 2
+              : null,
+        source: "demo",
+      },
     };
     this.repository.save(state, [event]);
   }
