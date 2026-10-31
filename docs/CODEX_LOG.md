@@ -80,3 +80,9 @@
 - Added an HTTP integration test that seeds the scripted scenario through the shared event bus and verifies the persisted completion appears in the authenticated overlay snapshot and public chain API, including the simulated marker and raw raid size.
 - Clean-copy install succeeded with `pnpm install --frozen-lockfile` in a disposable copy after the offline attempt found a missing cached tarball. Copied `.env.example` to `.env`, then ran `pnpm demo` twice from that copy; both reached `COMPLETED`. The clean-copy install reused the existing pnpm content store; it did not download packages.
 - Verification: typecheck, lint, workspace build, formatting, and `git diff --check` passed. Full suite: 76 passed, 3 failed because this environment denies loopback listeners (`listen EPERM`); the new demo-to-overlay/chain integration test passed independently. Browser preview and chain pages were not opened manually here.
+
+## Phase 8 — Docs and submission assets
+
+- Reworked README quick start to separate simulated browser/CLI demos from optional live Twitch and NVIDIA setup, document route purpose and active-quest/demo prerequisites, include an architecture diagram, real-vs-simulated status, limitations, privacy, and verification commands.
+- Added a truthful Devpost draft, a timed under-three-minute demo shot list, and a submission checklist covering reproducibility, secrets, live-verification caveats, and attribution limits.
+- Verification: docs formatted with Prettier; typecheck, lint, workspace build, and `git diff --check` passed. Full test run had 76 passing tests and 3 loopback-dependent failures (`listen EPERM`) in this restricted environment. The clean-copy setup and CLI demo were exercised during Phase 7; browser-based visual verification remains outstanding.
