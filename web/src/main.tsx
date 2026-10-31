@@ -174,8 +174,16 @@ function Overlay() {
         <>
           <div className="quest-chip">
             <span>{state.title}</span>
-            <span>CHAPTER {beat} / 2</span>
-            <span>{state.canonName ?? "Name pending"}</span>
+            <span>
+              {state.status === "ABANDONED"
+                ? "STORY CLOSED"
+                : `CHAPTER ${beat} / 2`}
+            </span>
+            <span>
+              {state.status === "ABANDONED"
+                ? "ABANDONED"
+                : (state.canonName ?? "Name pending")}
+            </span>
           </div>
           {state.status === "NAMING_OPEN" && (
             <section className="hero">
@@ -268,6 +276,16 @@ function Overlay() {
               <span className="eyebrow">HANDOFF CLOSED</span>
               <h1>This chapter rests.</h1>
               <p>The receiving streamer dismissed the incoming story.</p>
+            </section>
+          )}
+          {state.status === "ABANDONED" && (
+            <section className="story-card">
+              <span className="eyebrow">STORY CLOSED</span>
+              <h1>This chapter was set aside.</h1>
+              <p>
+                The streamer can start a new quest whenever the community is
+                ready.
+              </p>
             </section>
           )}
           {state.pausedAt !== null && (

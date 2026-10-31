@@ -86,3 +86,9 @@
 - Reworked README quick start to separate simulated browser/CLI demos from optional live Twitch and NVIDIA setup, document route purpose and active-quest/demo prerequisites, include an architecture diagram, real-vs-simulated status, limitations, privacy, and verification commands.
 - Added a truthful Devpost draft, a timed under-three-minute demo shot list, and a submission checklist covering reproducibility, secrets, live-verification caveats, and attribution limits.
 - Verification: docs formatted with Prettier; typecheck, lint, workspace build, and `git diff --check` passed. Full test run had 76 passing tests and 3 loopback-dependent failures (`listen EPERM`) in this restricted environment. The clean-copy setup and CLI demo were exercised during Phase 7; browser-based visual verification remains outstanding.
+
+## Overlay screenshot follow-up — Abandoned quest state
+
+- Reviewed the user's dashboard, overlay, and chain screenshots. The chain views matched the intended persisted history; the overlay displayed an empty story area and “Name pending” for an `ABANDONED` quest.
+- Added an explicit closed-story overlay card and status chip for abandoned quests. The translucent overlay canvas is intentional for OBS compositing.
+- Verification: typecheck, lint, web build, Prettier, and `git diff --check` passed. Full suite: 76 passed; 3 loopback WebSocket tests failed with `listen EPERM`. The user's local browser was not available for a post-change visual check.
