@@ -61,3 +61,22 @@
 - Diagnosed the reported Vite `socket hang up`: `pnpm dev` runs the server with `server/` as its current directory, while `dotenv/config` searched only there. The repository `.env` was at the root and `server/.env` was absent, so the backend used default channel/auth settings. Configured database and Twitch token paths were also relative to the wrong directory.
 - Changed server startup to load the root `.env` and resolve relative data/token paths from the project root. Invalid WebSocket upgrades now receive explicit HTTP 401/404/429 responses rather than being silently destroyed. README warns against including placeholder angle brackets in URL values.
 - Verified the running backend reports Twitch `connected` at `/healthz`; an intentionally invalid dashboard key through Vite received HTTP 401. Strict typecheck, lint, formatting, server build, `git diff --check`, and all 76 tests across 16 files passed.
+
+## Phase 6 follow-up — Abandon a stuck active quest
+
+- Corrected dashboard guidance for a quest paused in `AWAITING_RAID`: it cannot be dismissed through the existing handoff action and blocks the demo as an active quest.
+- Added an authenticated dashboard **Abandon quest** action, including for paused quests. Abandonment is persisted as a terminal status and public chain event, clears paused/deadline/pending-name state, and frees the channel for another quest or demo. Added a confirmation prompt.
+- Verification: typecheck, lint, server build, web build, formatting, and `git diff --check` passed. 75 tests passed; 3 WebSocket tests could not bind loopback sockets because this environment returned `listen EPERM: operation not permitted 127.0.0.1`.
+
+## WebSocket preview follow-up — Strict Mode development replay
+
+- Traced the preview's immediate WebSocket connection to the `useRelaySocket` effect. React Strict Mode replays effects on development mounts, so cleanup could close the first connection during Vite's proxy upgrade and produce a repeatable `ECONNRESET` log on preview open.
+- Deferred the initial WebSocket attempt by one event-loop turn; Strict Mode cleanup cancels the transient mount before it reaches Vite's proxy.
+- Verification: pending in this restricted runtime; the browser's Vite/WebSocket behavior must be checked by reopening the preview in the user's running `pnpm dev` session.
+
+## Phase 7 — Demo mode, hardening, clean install
+
+- Repeated the standalone `pnpm demo` path twice; each fresh in-memory SQLite run reached `COMPLETED` with the same two-channel story, preserved 37 raw viewers as medium tier, and ignored the duplicate raid.
+- Added an HTTP integration test that seeds the scripted scenario through the shared event bus and verifies the persisted completion appears in the authenticated overlay snapshot and public chain API, including the simulated marker and raw raid size.
+- Clean-copy install succeeded with `pnpm install --frozen-lockfile` in a disposable copy after the offline attempt found a missing cached tarball. Copied `.env.example` to `.env`, then ran `pnpm demo` twice from that copy; both reached `COMPLETED`. The clean-copy install reused the existing pnpm content store; it did not download packages.
+- Verification: typecheck, lint, workspace build, formatting, and `git diff --check` passed. Full suite: 76 passed, 3 failed because this environment denies loopback listeners (`listen EPERM`); the new demo-to-overlay/chain integration test passed independently. Browser preview and chain pages were not opened manually here.

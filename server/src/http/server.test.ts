@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { openDatabase } from "../store/database.js";
+import { runDemoScenario } from "../demo/scenario.js";
 import { createRelayServer, type RelayServer } from "./server.js";
 
 const config = {
@@ -94,6 +95,65 @@ describe("HTTP and realtime server", () => {
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
     expect(third.statusCode).toBe(429);
+  });
+
+  it("abandons a paused quest through the authenticated dashboard action", async () => {
+    const created = await relay.app.inject({
+      method: "POST",
+      url: "/api/quests",
+      headers: { "x-dashboard-token": config.dashboardToken },
+      payload: { channelId: "channel-a" },
+    });
+    const questId = (created.json() as { id: string }).id;
+    await relay.app.inject({
+      method: "POST",
+      url: "/api/pause",
+      headers: { "x-dashboard-token": config.dashboardToken },
+      payload: { questId },
+    });
+    const abandoned = await relay.app.inject({
+      method: "POST",
+      url: "/api/abandon",
+      headers: { "x-dashboard-token": config.dashboardToken },
+      payload: { questId },
+    });
+    expect(abandoned.statusCode).toBe(200);
+    expect(relay.repository.get(questId)?.status).toBe("ABANDONED");
+    expect(relay.repository.findActiveQuestByChannel("channel-a")).toBeNull();
+  });
+
+  it("serves the persisted demo story to the overlay and public chain", async () => {
+    const demo = runDemoScenario(database, {
+      questId: "demo-http-integration",
+      sourceChannelId: "channel-a",
+      targetChannelId: "channel-b",
+      startTime: Date.now() - 10_000,
+    });
+    const overlay = await relay.app.inject({
+      method: "GET",
+      url: "/api/overlay/channel-b",
+      headers: { "x-overlay-key": config.overlayKey },
+    });
+    expect(overlay.statusCode).toBe(200);
+    expect(overlay.json()).toMatchObject({
+      state: { id: demo.questId, status: "COMPLETED", partySize: 37 },
+      simulated: true,
+    });
+
+    const chain = await relay.app.inject({
+      method: "GET",
+      url: `/api/chain/${demo.questId}`,
+    });
+    expect(chain.statusCode).toBe(200);
+    expect(chain.json()).toMatchObject({
+      questId: demo.questId,
+      status: "COMPLETED",
+      sourceChannelId: "channel-a",
+      targetChannelId: "channel-b",
+      partySize: 37,
+      partyTier: "medium",
+    });
+    expect(chain.body).not.toContain("voterHash");
   });
 
   it("returns an HTTP 401 for an invalid WebSocket dashboard key", async () => {

@@ -44,6 +44,8 @@ Replace each placeholder with the exact `.env` value; do not include the `<` or 
 
 The dashboard controls quests and the overlay receives an initial snapshot plus live updates over WebSocket. With `DEMO_MODE=true` and two configured channels, the dashboard exposes **Run full demo**. That button runs a simulated A-to-B scenario through the same event bus and persisted database; the overlay labels simulated inputs.
 
+An active quest can be ended from its dashboard with **Abandon quest**. This records an `ABANDONED` terminal state in the story chain and frees its channel for another quest or the demo. The demo requires both configured channels to have no active quest.
+
 The development server uses `PUBLIC_BASE_URL` for allowed API CORS origins. Vite proxies API and WebSocket requests to the local server. The interactive demo pauses at naming review, votes, raid welcome, beat-two voting, and the outcome so each card has time to appear; its short vote window is configurable with `DEMO_VOTE_WINDOW_SECONDS`.
 
 Recaps use the deterministic two-sentence template by default. To opt into NVIDIA, set `AI_ENABLED=true`, provide `NVIDIA_API_KEY`, and set `AI_MODEL` (the example uses `nvidia/nemotron-3.5-bolt-e4b`). The server sends quest facts only; validated provider failures keep the template recap.
