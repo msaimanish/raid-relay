@@ -51,7 +51,8 @@ export function reduceQuest(
   if (
     state.pausedAt !== null &&
     command.type !== "RESUME" &&
-    command.type !== "PAUSE"
+    command.type !== "PAUSE" &&
+    command.type !== "ABANDON"
   ) {
     throw new InvalidQuestCommandError(
       "Quest is paused; resume it before accepting commands.",
@@ -69,6 +70,19 @@ export function reduceQuest(
   };
 
   switch (command.type) {
+    case "ABANDON":
+      if (
+        state.status === "COMPLETED" ||
+        state.status === "HANDOFF_DISMISSED" ||
+        state.status === "ABANDONED"
+      )
+        throw new InvalidQuestCommandError("Quest is already terminal.");
+      next.status = "ABANDONED";
+      next.deadlineAt = null;
+      next.pausedAt = null;
+      next.pendingName = null;
+      emit("quest.abandoned");
+      break;
     case "OPEN_NAMING":
       requireStatus(state, "DRAFT");
       if (command.deadlineAt <= now)

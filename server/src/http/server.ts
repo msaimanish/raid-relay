@@ -109,6 +109,7 @@ const PUBLIC_EVENT_TYPES = new Set([
   "quest.paused",
   "quest.resumed",
   "quest.started",
+  "quest.abandoned",
 ]);
 
 function constantTimeEqual(actual: string, expected: string): boolean {
@@ -575,6 +576,14 @@ export async function createRelayServer(
     const { questId } = ActionSchema.parse(request.body);
     return bus.dispatch(
       { type: "quest.command", questId, command: { type: "RESUME" } },
+      Date.now(),
+    );
+  });
+  app.post("/api/abandon", async (request, reply) => {
+    if (!requireDashboard(request, reply)) return;
+    const { questId } = ActionSchema.parse(request.body);
+    return bus.dispatch(
+      { type: "quest.command", questId, command: { type: "ABANDON" } },
       Date.now(),
     );
   });

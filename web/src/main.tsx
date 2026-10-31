@@ -96,7 +96,9 @@ function useRelaySocket(
       };
       socket.onerror = () => socket?.close();
     };
-    connect();
+    // React Strict Mode replays effects in development. Deferring the first
+    // socket lets its cleanup cancel the throwaway mount before Vite proxies it.
+    retry = window.setTimeout(connect, 0);
     return () => {
       stopped = true;
       if (retry) window.clearTimeout(retry);
@@ -405,11 +407,15 @@ function Dashboard() {
     path: string,
     body?: unknown,
     primary = false,
+    confirmMessage?: string,
   ) => (
     <button
       className={primary ? "primary" : ""}
       disabled={busy}
-      onClick={() => void api(path, body)}
+      onClick={() => {
+        if (confirmMessage && !window.confirm(confirmMessage)) return;
+        void api(path, body);
+      }}
     >
       {label}
     </button>
@@ -552,13 +558,17 @@ function Dashboard() {
                   )}
                 {state &&
                   state.pausedAt === null &&
-                  !["COMPLETED", "HANDOFF_DISMISSED"].includes(state.status) &&
+                  !["COMPLETED", "HANDOFF_DISMISSED", "ABANDONED"].includes(
+                    state.status,
+                  ) &&
                   button("Pause", "/api/pause", { questId: state.id })}
                 {state &&
                   state.pausedAt !== null &&
                   button("Resume", "/api/resume", { questId: state.id }, true)}
                 {state &&
-                  ["COMPLETED", "HANDOFF_DISMISSED"].includes(state.status) &&
+                  ["COMPLETED", "HANDOFF_DISMISSED", "ABANDONED"].includes(
+                    state.status,
+                  ) &&
                   button(
                     "Start another quest",
                     "/api/quests",
@@ -567,12 +577,25 @@ function Dashboard() {
                   )}
                 {snapshot?.demoMode &&
                   state &&
-                  ["COMPLETED", "HANDOFF_DISMISSED"].includes(state.status) &&
+                  ["COMPLETED", "HANDOFF_DISMISSED", "ABANDONED"].includes(
+                    state.status,
+                  ) &&
                   button(
                     "Run full demo",
                     "/api/demo/run",
                     { channelId: channel },
                     true,
+                  )}
+                {state &&
+                  !["COMPLETED", "HANDOFF_DISMISSED", "ABANDONED"].includes(
+                    state.status,
+                  ) &&
+                  button(
+                    "Abandon quest",
+                    "/api/abandon",
+                    { questId: state.id },
+                    false,
+                    "Abandon this quest? It will remain in the story chain as abandoned, and its channel will be available for another quest or the demo.",
                   )}
               </div>
             </>

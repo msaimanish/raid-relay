@@ -11,6 +11,7 @@ export const QuestStatusSchema = z.enum([
   "BEAT2_VOTING",
   "COMPLETED",
   "HANDOFF_DISMISSED",
+  "ABANDONED",
 ]);
 export type QuestStatus = z.infer<typeof QuestStatusSchema>;
 export const PartyTierSchema = z.enum(["small", "medium", "large"]);
@@ -167,6 +168,7 @@ export const QuestCommandSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("PAUSE") }),
   z.object({ type: z.literal("RESUME") }),
+  z.object({ type: z.literal("ABANDON") }),
 ]);
 export type QuestCommand = z.infer<typeof QuestCommandSchema>;
 

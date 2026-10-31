@@ -105,6 +105,24 @@ describe("quest reducer", () => {
     );
   });
 
+  it("abandons an active paused quest and clears its deadline", () => {
+    const state = move(
+      move(
+        createInitialQuestState("q-abandon", "source", 0),
+        { type: "PAUSE" },
+        1,
+      ),
+      { type: "ABANDON" },
+      2,
+    );
+    expect(state.status).toBe("ABANDONED");
+    expect(state.pausedAt).toBeNull();
+    expect(state.deadlineAt).toBeNull();
+    expect(() => reduceQuest(state, { type: "ABANDON" }, 3)).toThrow(
+      InvalidQuestCommandError,
+    );
+  });
+
   it("rejects invalid transitions and early window closes", () => {
     const state = createInitialQuestState("q", "channel", 0);
     expect(() =>
