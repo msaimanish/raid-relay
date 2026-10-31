@@ -59,6 +59,28 @@ CREATE TABLE idempotency_keys (
 );
 `;
 
+const MIGRATION_2 = `
+CREATE TABLE name_proposals (
+  quest_id TEXT NOT NULL REFERENCES quests(id),
+  voter_hash TEXT NOT NULL,
+  normalized_name TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  first_proposed_at INTEGER NOT NULL,
+  PRIMARY KEY (quest_id, voter_hash)
+);
+
+CREATE INDEX name_proposals_by_name ON name_proposals (quest_id, normalized_name);
+
+CREATE TABLE name_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quest_id TEXT NOT NULL REFERENCES quests(id),
+  actor_hash TEXT,
+  action TEXT NOT NULL,
+  normalized_name TEXT,
+  created_at INTEGER NOT NULL
+);
+`;
+
 export function openDatabase(path: string): RelayDatabase {
   const database = new Database(path);
   database.pragma("journal_mode = WAL");
@@ -85,6 +107,24 @@ export function applyMigrations(database: RelayDatabase): void {
       database
         .prepare(
           "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)",
+        )
+        .run(Date.now());
+    });
+    migrate();
+  }
+  const currentVersion = (
+    database
+      .prepare(
+        "SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations",
+      )
+      .get() as { version: number }
+  ).version;
+  if (currentVersion < 2) {
+    const migrate = database.transaction(() => {
+      database.exec(MIGRATION_2);
+      database
+        .prepare(
+          "INSERT INTO schema_migrations (version, applied_at) VALUES (2, ?)",
         )
         .run(Date.now());
     });

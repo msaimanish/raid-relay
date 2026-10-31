@@ -81,8 +81,10 @@ export function reduceQuest(
       break;
     case "SUBMIT_NAME_FOR_APPROVAL":
       requireStatus(state, "NAMING_OPEN");
-      if (state.deadlineAt !== null && now >= state.deadlineAt)
-        throw new InvalidQuestCommandError("Naming window is closed.");
+      if (state.deadlineAt !== null && now < state.deadlineAt)
+        throw new InvalidQuestCommandError(
+          "The naming window must close before a candidate is sent for approval.",
+        );
       next.status = "NAME_PENDING_APPROVAL";
       next.pendingName = command.name;
       next.deadlineAt = null;
@@ -111,6 +113,25 @@ export function reduceQuest(
       next.pendingName = null;
       next.status = "NAMING_OPEN";
       emit("name.rejected");
+      break;
+    case "USE_DEFAULT_NAME":
+      if (
+        state.status !== "NAMING_OPEN" &&
+        state.status !== "NAME_PENDING_APPROVAL"
+      )
+        throw new InvalidQuestCommandError(
+          "The default canon name can only be selected during naming.",
+        );
+      if (command.deadlineAt <= now)
+        throw new InvalidQuestCommandError(
+          "Voting deadline must be in the future.",
+        );
+      next.pendingName = null;
+      next.canonName = "the Ember Fox";
+      next.status = "BEAT1_VOTING";
+      next.deadlineAt = command.deadlineAt;
+      emit("name.default_selected", { canonName: next.canonName });
+      emit("beat1.voting_opened", { deadlineAt: command.deadlineAt });
       break;
     case "WINDOW_CLOSED":
       if (state.status !== "BEAT1_VOTING" && state.status !== "BEAT2_VOTING") {

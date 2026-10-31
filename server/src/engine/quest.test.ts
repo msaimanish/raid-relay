@@ -24,8 +24,8 @@ function move(
 
 function toBeat1(state = createInitialQuestState("q1", "source", 0)) {
   let s = move(state, { type: "OPEN_NAMING", deadlineAt: 100 }, 1);
-  s = move(s, { type: "SUBMIT_NAME_FOR_APPROVAL", name: "Ember Fox" }, 2);
-  return move(s, { type: "APPROVE_NAME", deadlineAt: 200 }, 3);
+  s = move(s, { type: "SUBMIT_NAME_FOR_APPROVAL", name: "Ember Fox" }, 100);
+  return move(s, { type: "APPROVE_NAME", deadlineAt: 200 }, 101);
 }
 
 describe("quest reducer", () => {
@@ -36,10 +36,10 @@ describe("quest reducer", () => {
     state = move(
       state,
       { type: "SUBMIT_NAME_FOR_APPROVAL", name: "The Ember Fox" },
-      2,
+      10,
     );
     expect(state.status).toBe("NAME_PENDING_APPROVAL");
-    state = move(state, { type: "APPROVE_NAME", deadlineAt: 20 }, 3);
+    state = move(state, { type: "APPROVE_NAME", deadlineAt: 20 }, 11);
     expect(state.canonName).toBe("The Ember Fox");
     const beat1 = reduceQuest(
       state,
@@ -79,17 +79,17 @@ describe("quest reducer", () => {
     state = move(
       state,
       { type: "SUBMIT_NAME_FOR_APPROVAL", name: "Candidate" },
-      2,
+      100,
     );
-    state = move(state, { type: "REJECT_NAME" }, 3);
+    state = move(state, { type: "REJECT_NAME" }, 101);
     expect(state.status).toBe("NAMING_OPEN");
     state = move(
       state,
       { type: "SUBMIT_NAME_FOR_APPROVAL", name: "Approved" },
-      4,
+      102,
     );
-    state = move(state, { type: "APPROVE_NAME", deadlineAt: 10 }, 5);
-    state = move(state, { type: "WINDOW_CLOSED", votes: [] }, 10);
+    state = move(state, { type: "APPROVE_NAME", deadlineAt: 110 }, 103);
+    state = move(state, { type: "WINDOW_CLOSED", votes: [] }, 110);
     state = move(
       state,
       {
@@ -98,9 +98,9 @@ describe("quest reducer", () => {
         targetChannelId: "target",
         viewers: 1,
       },
-      11,
+      111,
     );
-    expect(move(state, { type: "DISMISS_HANDOFF" }, 12).status).toBe(
+    expect(move(state, { type: "DISMISS_HANDOFF" }, 112).status).toBe(
       "HANDOFF_DISMISSED",
     );
   });
@@ -125,12 +125,12 @@ describe("quest reducer", () => {
     const submission = reduceQuest(
       state,
       { type: "SUBMIT_NAME_FOR_APPROVAL", name: "Private proposal" },
-      2,
+      100,
     );
     state = submission.state;
     expect(state.pendingName).toBe("Private proposal");
     expect(JSON.stringify(submission.events)).not.toContain("Private proposal");
-    const rejection = reduceQuest(state, { type: "REJECT_NAME" }, 3);
+    const rejection = reduceQuest(state, { type: "REJECT_NAME" }, 101);
     expect(JSON.stringify(rejection.events)).not.toContain("Private proposal");
   });
 
@@ -281,8 +281,8 @@ describe("outcomes", () => {
       const allEvents: ReturnType<typeof reduceQuest>["events"] = [];
       const commands: Array<[Parameters<typeof reduceQuest>[1], number]> = [
         [{ type: "OPEN_NAMING", deadlineAt: 100 }, 1],
-        [{ type: "SUBMIT_NAME_FOR_APPROVAL", name: "Ember Fox" }, 2],
-        [{ type: "APPROVE_NAME", deadlineAt: 200 }, 3],
+        [{ type: "SUBMIT_NAME_FOR_APPROVAL", name: "Ember Fox" }, 100],
+        [{ type: "APPROVE_NAME", deadlineAt: 200 }, 101],
         [
           { type: "WINDOW_CLOSED", votes: [vote("a", "raider", "protect")] },
           200,

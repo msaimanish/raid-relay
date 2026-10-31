@@ -28,8 +28,30 @@ export type Beat1Flag = z.infer<typeof Beat1FlagSchema>;
 export const OutcomeKindSchema = z.enum(["triumph", "costly_win", "setback"]);
 export type OutcomeKind = z.infer<typeof OutcomeKindSchema>;
 
+export const VoterHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const NameCandidateSchema = z.object({
+  displayName: z.string().min(1).max(48),
+  normalizedName: z.string().min(1).max(48),
+});
+export type NameCandidate = z.infer<typeof NameCandidateSchema>;
+export const RankedNameProposalSchema = NameCandidateSchema.extend({
+  supportCount: z.number().int().positive(),
+  firstProposedAt: z.number().int(),
+});
+export type RankedNameProposal = z.infer<typeof RankedNameProposalSchema>;
+export const NameAuditActionSchema = z.enum([
+  "proposal_added",
+  "proposal_supported",
+  "proposal_replaced",
+  "moderation_rejected",
+  "vetoed",
+  "approved",
+  "default_selected",
+]);
+export type NameAuditAction = z.infer<typeof NameAuditActionSchema>;
+
 export const VoteSchema = z.object({
-  voterHash: z.string().regex(/^[a-f0-9]{64}$/),
+  voterHash: VoterHashSchema,
   faction: FactionSchema,
   choice: ChoiceSchema,
 });
@@ -103,10 +125,14 @@ export const QuestCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("OPEN_NAMING"), deadlineAt: z.number().int() }),
   z.object({
     type: z.literal("SUBMIT_NAME_FOR_APPROVAL"),
-    name: z.string().min(1).max(40),
+    name: z.string().min(1).max(48),
   }),
   z.object({ type: z.literal("APPROVE_NAME"), deadlineAt: z.number().int() }),
   z.object({ type: z.literal("REJECT_NAME") }),
+  z.object({
+    type: z.literal("USE_DEFAULT_NAME"),
+    deadlineAt: z.number().int(),
+  }),
   z.object({ type: z.literal("WINDOW_CLOSED"), votes: z.array(VoteSchema) }),
   z.object({
     type: z.literal("RAID_RECEIVED"),

@@ -36,7 +36,7 @@ describe("SQLite quest persistence", () => {
     const submitted = reduceQuest(
       state,
       { type: "SUBMIT_NAME_FOR_APPROVAL", name: "The Ember Fox" },
-      30,
+      100,
     );
     state = submitted.state;
     repository.save(state, submitted.events);
@@ -50,7 +50,7 @@ describe("SQLite quest persistence", () => {
       {
         sequence: 2,
         type: "name.pending_approval",
-        at: 30,
+        at: 100,
         data: {},
       },
     ]);

@@ -14,3 +14,10 @@
 - Tests added: 12 engine tests covering lifecycle transitions, invalid commands, vote combination and replacement, tier boundaries, pause/resume, name privacy, all 18 beat-2 combinations, and byte-for-byte deterministic replay; 2 persistence tests covering close/reopen state/history and vote/idempotency behavior.
 - Bugs found and fixed: pending and rejected name text was initially present in an engine event; removed candidate text from chain events and added a regression test. Adjusted server TypeScript output layout so shared engine contracts compile into the server build.
 - Verification: typecheck, lint, 15 total tests, build, and formatting check passed. Restart test reopens the same SQLite file and compares persisted state and ordered history.
+
+## Phase 2 — Naming, moderation, approval
+
+- Added round-aware chat command parsing, Unicode normalization and candidate moderation, hashed-account proposal replacement, plurality ranking with earliest-proposal tie-break, private audit rows, ordered veto/approval/default handling, and the 20-commands-per-10-seconds helper.
+- Tests added: hostile command and Unicode input matrices; moderation checks for zero-width/compatibility characters, URLs, mentions, profanity, lengths and unsupported characters; proposal replacement/support, plurality/tie ordering, veto progression and safe default; limiter threshold coverage.
+- Bugs found and fixed: changed name review to begin only after the naming window closes; reordered moderation checks so long URL inputs are categorized safely; ensured candidate names stay out of public events until approval and writes of name decisions plus audit rows are transactional.
+- Verification: typecheck and lint passed; 47 tests passed across 7 files; build, formatting check, and `git diff --check` passed.

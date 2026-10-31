@@ -1,7 +1,14 @@
 import {
+  NameAuditActionSchema,
+  NameCandidateSchema,
+  RankedNameProposalSchema,
   QuestStateSchema,
+  VoterHashSchema,
   VoteSchema,
   type EngineEvent,
+  type NameAuditAction,
+  type NameCandidate,
+  type RankedNameProposal,
   type QuestState,
   type Vote,
 } from "../../../shared/src/index.js";
@@ -68,6 +75,32 @@ export class QuestRepository {
       );
     });
     saveTransaction();
+  }
+
+  saveWithNameAudit(
+    stateInput: QuestState,
+    events: readonly EngineEvent[],
+    actorHashInput: string | null,
+    actionInput: NameAuditAction,
+    normalizedName: string | null,
+    createdAt: number,
+  ): void {
+    const state = QuestStateSchema.parse(stateInput);
+    const actorHash =
+      actorHashInput === null ? null : VoterHashSchema.parse(actorHashInput);
+    const action = NameAuditActionSchema.parse(actionInput);
+    if (!Number.isSafeInteger(createdAt))
+      throw new RangeError("Audit time must be an integer timestamp.");
+    this.database.transaction(() => {
+      this.save(state, events);
+      this.insertNameAudit(
+        state.id,
+        actorHash,
+        action,
+        normalizedName,
+        createdAt,
+      );
+    })();
   }
 
   get(questId: string): QuestState | null {
@@ -175,5 +208,124 @@ export class QuestRepository {
       )
       .run(key, JSON.stringify(result), createdAt);
     return outcome.changes === 1;
+  }
+
+  recordNameProposal(
+    questId: string,
+    voterHashInput: string,
+    candidateInput: NameCandidate,
+    createdAt: number,
+  ): "proposal_added" | "proposal_supported" | "proposal_replaced" {
+    if (!Number.isSafeInteger(createdAt))
+      throw new RangeError("Proposal time must be an integer timestamp.");
+    const voterHash = VoterHashSchema.parse(voterHashInput);
+    const candidate = NameCandidateSchema.parse(candidateInput);
+    if (candidate.normalizedName !== candidate.displayName.toLowerCase())
+      throw new Error(
+        "Candidate normalizedName must be the lower-case displayName.",
+      );
+    return this.database.transaction(() => {
+      const previous = this.database
+        .prepare(
+          "SELECT normalized_name FROM name_proposals WHERE quest_id = ? AND voter_hash = ?",
+        )
+        .get(questId, voterHash) as { normalized_name: string } | undefined;
+      const action = !previous
+        ? "proposal_added"
+        : previous.normalized_name === candidate.normalizedName
+          ? "proposal_supported"
+          : "proposal_replaced";
+      this.database
+        .prepare(
+          `
+        INSERT INTO name_proposals (quest_id, voter_hash, normalized_name, display_name, first_proposed_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (quest_id, voter_hash) DO UPDATE SET
+          normalized_name=excluded.normalized_name,
+          display_name=CASE WHEN name_proposals.normalized_name = excluded.normalized_name THEN name_proposals.display_name ELSE excluded.display_name END,
+          first_proposed_at=CASE WHEN name_proposals.normalized_name = excluded.normalized_name THEN name_proposals.first_proposed_at ELSE excluded.first_proposed_at END
+      `,
+        )
+        .run(
+          questId,
+          voterHash,
+          candidate.normalizedName,
+          candidate.displayName,
+          createdAt,
+        );
+      this.insertNameAudit(
+        questId,
+        voterHash,
+        action,
+        candidate.normalizedName,
+        createdAt,
+      );
+      return action;
+    })();
+  }
+
+  recordNameAudit(
+    questId: string,
+    actorHashInput: string | null,
+    actionInput: NameAuditAction,
+    normalizedName: string | null,
+    createdAt: number,
+  ): void {
+    if (!Number.isSafeInteger(createdAt))
+      throw new RangeError("Audit time must be an integer timestamp.");
+    const actorHash =
+      actorHashInput === null ? null : VoterHashSchema.parse(actorHashInput);
+    const action = NameAuditActionSchema.parse(actionInput);
+    this.insertNameAudit(questId, actorHash, action, normalizedName, createdAt);
+  }
+
+  private insertNameAudit(
+    questId: string,
+    actorHash: string | null,
+    action: NameAuditAction,
+    normalizedName: string | null,
+    createdAt: number,
+  ): void {
+    this.database
+      .prepare(
+        "INSERT INTO name_audit (quest_id, actor_hash, action, normalized_name, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(questId, actorHash, action, normalizedName, createdAt);
+  }
+
+  vetoedNameKeys(questId: string): ReadonlySet<string> {
+    const rows = this.database
+      .prepare(
+        "SELECT DISTINCT normalized_name FROM name_audit WHERE quest_id = ? AND action = 'vetoed' AND normalized_name IS NOT NULL",
+      )
+      .all(questId) as Array<{ normalized_name: string }>;
+    return new Set(rows.map((row) => row.normalized_name));
+  }
+
+  rankNameProposals(questId: string): RankedNameProposal[] {
+    const rows = this.database
+      .prepare(
+        `
+        SELECT p.normalized_name,
+          (SELECT d.display_name FROM name_proposals d WHERE d.quest_id = p.quest_id AND d.normalized_name = p.normalized_name ORDER BY d.first_proposed_at, d.voter_hash LIMIT 1) AS display_name,
+          COUNT(*) AS support_count,
+          MIN(p.first_proposed_at) AS first_proposed_at
+        FROM name_proposals p
+        WHERE p.quest_id = ? AND p.normalized_name NOT IN (
+          SELECT normalized_name FROM name_audit WHERE quest_id = ? AND action = 'vetoed' AND normalized_name IS NOT NULL
+        )
+        GROUP BY p.normalized_name
+        ORDER BY support_count DESC, first_proposed_at ASC, p.normalized_name ASC
+      `,
+      )
+      .all(questId, questId) as Array<Record<string, unknown>>;
+    return rows.map((row) =>
+      RankedNameProposalSchema.parse({
+        normalizedName: row.normalized_name,
+        displayName: row.display_name,
+        supportCount: row.support_count,
+        firstProposedAt: row.first_proposed_at,
+      }),
+    );
   }
 }
