@@ -21,3 +21,10 @@
 - Tests added: hostile command and Unicode input matrices; moderation checks for zero-width/compatibility characters, URLs, mentions, profanity, lengths and unsupported characters; proposal replacement/support, plurality/tie ordering, veto progression and safe default; limiter threshold coverage.
 - Bugs found and fixed: changed name review to begin only after the naming window closes; reordered moderation checks so long URL inputs are categorized safely; ensured candidate names stay out of public events until approval and writes of name decisions plus audit rows are transactional.
 - Verification: typecheck and lint passed; 47 tests passed across 7 files; build, formatting check, and `git diff --check` passed.
+
+## Phase 3 — Raid handoff, welcome, factions, resolution
+
+- Added normalized raid/chat inputs to a shared event bus, transactional raid-event idempotency, configured-channel and matching-quest checks, persisted source/target participation cohorts, target `!join` classification, and a scripted A-to-B demo using the same bus and SQLite repositories.
+- Tests added: duplicate raid and unmatched/unconfigured raid handling; missing viewer fallback; dismissed handoff; source-cohort and target-join faction classification; end-to-end scenario with raw viewer count and faction tallies asserted.
+- Bugs found and fixed: made window-close resolution load persisted votes instead of trusting a caller-supplied list; added the final fallback return required by strict TypeScript and removed unused imports found by lint.
+- Verification: typecheck, lint, all 52 tests across 9 files, production build, format check, and `git diff --check` passed. `pnpm demo` completed the A-to-B scenario with 37 raw viewers, medium tier, accepted handoff, faction resolution, completion, and duplicate raid ignored.

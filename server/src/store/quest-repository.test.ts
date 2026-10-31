@@ -85,4 +85,38 @@ describe("SQLite quest persistence", () => {
     );
     database.close();
   });
+
+  it("persists faction cohorts and runs raid operations exactly once", () => {
+    const database = openDatabase(tempDatabasePath());
+    const repository = new QuestRepository(database);
+    const state = createInitialQuestState("cohort-q", "source", 1);
+    repository.save(state);
+    const sourceRaider = "a".repeat(64);
+    const joinedRaider = "b".repeat(64);
+    repository.markSourceParticipant("cohort-q", sourceRaider, "twitch", 2);
+    repository.markTargetJoin("cohort-q", joinedRaider, "demo", 3);
+    expect(repository.factionForVote("cohort-q", sourceRaider)).toBe("raider");
+    expect(repository.factionForVote("cohort-q", joinedRaider)).toBe("raider");
+    expect(repository.factionForVote("cohort-q", "c".repeat(64))).toBe("local");
+
+    let operations = 0;
+    const operation = () => {
+      operations += 1;
+      repository.save(state, [
+        { type: "raid.received", at: 4, data: { sourceChannelId: "source" } },
+      ]);
+      return { matched: true, questId: "cohort-q" };
+    };
+    expect(repository.runIdempotent("raid:event-1", 4, operation)).toEqual({
+      duplicate: false,
+      result: { matched: true, questId: "cohort-q" },
+    });
+    expect(repository.runIdempotent("raid:event-1", 5, operation)).toEqual({
+      duplicate: true,
+      result: { matched: true, questId: "cohort-q" },
+    });
+    expect(operations).toBe(1);
+    expect(repository.events("cohort-q")).toHaveLength(1);
+    database.close();
+  });
 });

@@ -1,4 +1,5 @@
 import {
+  EventSourceSchema,
   NameAuditActionSchema,
   NameCandidateSchema,
   RankedNameProposalSchema,
@@ -6,6 +7,8 @@ import {
   VoterHashSchema,
   VoteSchema,
   type EngineEvent,
+  type EventSource,
+  type Faction,
   type NameAuditAction,
   type NameCandidate,
   type RankedNameProposal,
@@ -157,8 +160,12 @@ export class QuestRepository {
     round: 1 | 2,
     voteInput: Vote,
     createdAt: number,
+    sourceInput: EventSource = "twitch",
   ): void {
     const vote = VoteSchema.parse(voteInput);
+    const source = EventSourceSchema.parse(sourceInput);
+    if (!Number.isSafeInteger(createdAt))
+      throw new RangeError("Vote time must be an integer timestamp.");
     const choices =
       round === 1 ? ["protect", "claim"] : ["fight", "trade", "sneak"];
     if (!choices.includes(vote.choice))
@@ -166,9 +173,9 @@ export class QuestRepository {
     this.database
       .prepare(
         `
-      INSERT INTO votes (quest_id, round, voter_hash, faction, choice, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT (quest_id, round, voter_hash) DO UPDATE SET faction=excluded.faction, choice=excluded.choice, created_at=excluded.created_at
+      INSERT INTO votes (quest_id, round, voter_hash, faction, choice, created_at, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (quest_id, round, voter_hash) DO UPDATE SET faction=excluded.faction, choice=excluded.choice, created_at=excluded.created_at, source=excluded.source
     `,
       )
       .run(
@@ -178,6 +185,7 @@ export class QuestRepository {
         vote.faction,
         vote.choice,
         createdAt,
+        source,
       );
   }
 
@@ -208,6 +216,111 @@ export class QuestRepository {
       )
       .run(key, JSON.stringify(result), createdAt);
     return outcome.changes === 1;
+  }
+
+  runIdempotent<T>(
+    key: string,
+    createdAt: number,
+    operation: () => T,
+  ): { duplicate: boolean; result: T } {
+    if (!key || key.length > 256)
+      throw new RangeError("Idempotency key must contain 1–256 characters.");
+    if (!Number.isSafeInteger(createdAt))
+      throw new RangeError("Idempotency time must be an integer timestamp.");
+    return this.database.transaction(() => {
+      const previous = this.database
+        .prepare("SELECT result_json FROM idempotency_keys WHERE key = ?")
+        .get(key) as { result_json: string } | undefined;
+      if (previous) {
+        return {
+          duplicate: true,
+          result: JSON.parse(previous.result_json) as T,
+        };
+      }
+      const result = operation();
+      this.database
+        .prepare(
+          "INSERT INTO idempotency_keys (key, result_json, created_at) VALUES (?, ?, ?)",
+        )
+        .run(key, JSON.stringify(result), createdAt);
+      return { duplicate: false, result };
+    })();
+  }
+
+  findAwaitingRaidBySource(sourceChannelId: string): QuestState | null {
+    const row = this.database
+      .prepare(
+        "SELECT id FROM quests WHERE status = 'AWAITING_RAID' AND current_channel_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+      )
+      .get(sourceChannelId) as { id: string } | undefined;
+    return row ? this.get(row.id) : null;
+  }
+
+  findActiveQuestByChannel(channelId: string): QuestState | null {
+    const row = this.database
+      .prepare(
+        "SELECT id FROM quests WHERE (current_channel_id = ? OR source_channel_id = ?) AND status IN ('DRAFT', 'NAMING_OPEN', 'NAME_PENDING_APPROVAL', 'BEAT1_VOTING', 'AWAITING_RAID', 'HANDOFF_OFFERED', 'WELCOME', 'BEAT2_VOTING') ORDER BY CASE WHEN current_channel_id = ? THEN 0 ELSE 1 END, updated_at DESC, created_at DESC LIMIT 1",
+      )
+      .get(channelId, channelId, channelId) as { id: string } | undefined;
+    return row ? this.get(row.id) : null;
+  }
+
+  markSourceParticipant(
+    questId: string,
+    voterHashInput: string,
+    sourceInput: EventSource,
+    firstSeenAt: number,
+  ): void {
+    this.markParticipant(
+      questId,
+      voterHashInput,
+      "source",
+      sourceInput,
+      firstSeenAt,
+    );
+  }
+
+  markTargetJoin(
+    questId: string,
+    voterHashInput: string,
+    sourceInput: EventSource,
+    firstSeenAt: number,
+  ): void {
+    this.markParticipant(
+      questId,
+      voterHashInput,
+      "target_join",
+      sourceInput,
+      firstSeenAt,
+    );
+  }
+
+  private markParticipant(
+    questId: string,
+    voterHashInput: string,
+    cohort: "source" | "target_join",
+    sourceInput: EventSource,
+    firstSeenAt: number,
+  ): void {
+    const voterHash = VoterHashSchema.parse(voterHashInput);
+    const source = EventSourceSchema.parse(sourceInput);
+    if (!Number.isSafeInteger(firstSeenAt))
+      throw new RangeError("Participant time must be an integer timestamp.");
+    this.database
+      .prepare(
+        "INSERT OR IGNORE INTO quest_participants (quest_id, voter_hash, cohort, source, first_seen_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(questId, voterHash, cohort, source, firstSeenAt);
+  }
+
+  factionForVote(questId: string, voterHashInput: string): Faction {
+    const voterHash = VoterHashSchema.parse(voterHashInput);
+    const participant = this.database
+      .prepare(
+        "SELECT 1 FROM quest_participants WHERE quest_id = ? AND voter_hash = ? LIMIT 1",
+      )
+      .get(questId, voterHash);
+    return participant ? "raider" : "local";
   }
 
   recordNameProposal(

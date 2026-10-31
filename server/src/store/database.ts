@@ -81,6 +81,19 @@ CREATE TABLE name_audit (
 );
 `;
 
+const MIGRATION_3 = `
+ALTER TABLE votes ADD COLUMN source TEXT NOT NULL DEFAULT 'twitch' CHECK (source IN ('twitch', 'demo'));
+
+CREATE TABLE quest_participants (
+  quest_id TEXT NOT NULL REFERENCES quests(id),
+  voter_hash TEXT NOT NULL,
+  cohort TEXT NOT NULL CHECK (cohort IN ('source', 'target_join')),
+  source TEXT NOT NULL CHECK (source IN ('twitch', 'demo')),
+  first_seen_at INTEGER NOT NULL,
+  PRIMARY KEY (quest_id, voter_hash, cohort)
+);
+`;
+
 export function openDatabase(path: string): RelayDatabase {
   const database = new Database(path);
   database.pragma("journal_mode = WAL");
@@ -125,6 +138,24 @@ export function applyMigrations(database: RelayDatabase): void {
       database
         .prepare(
           "INSERT INTO schema_migrations (version, applied_at) VALUES (2, ?)",
+        )
+        .run(Date.now());
+    });
+    migrate();
+  }
+  const latestVersion = (
+    database
+      .prepare(
+        "SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations",
+      )
+      .get() as { version: number }
+  ).version;
+  if (latestVersion < 3) {
+    const migrate = database.transaction(() => {
+      database.exec(MIGRATION_3);
+      database
+        .prepare(
+          "INSERT INTO schema_migrations (version, applied_at) VALUES (3, ?)",
         )
         .run(Date.now());
     });

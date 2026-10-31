@@ -186,6 +186,7 @@ export function reduceQuest(
         targetChannelId: command.targetChannelId,
         viewers: command.viewers,
         partyTier: next.partyTier,
+        source: command.source ?? "twitch",
         fallback:
           command.viewers === null ? "missing viewers; medium tier used" : null,
       });

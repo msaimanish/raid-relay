@@ -50,6 +50,24 @@ export const NameAuditActionSchema = z.enum([
 ]);
 export type NameAuditAction = z.infer<typeof NameAuditActionSchema>;
 
+export const EventSourceSchema = z.enum(["twitch", "demo"]);
+export type EventSource = z.infer<typeof EventSourceSchema>;
+export const RaidEventSchema = z.object({
+  eventId: z.string().min(1).max(128),
+  sourceChannelId: z.string().min(1),
+  targetChannelId: z.string().min(1),
+  viewers: z.number().int().nonnegative().nullable(),
+  source: EventSourceSchema,
+});
+export type RaidEvent = z.infer<typeof RaidEventSchema>;
+export const ChatMessageInputSchema = z.object({
+  channelId: z.string().min(1),
+  voterHash: VoterHashSchema,
+  text: z.string().max(1000),
+  source: EventSourceSchema,
+});
+export type ChatMessageInput = z.infer<typeof ChatMessageInputSchema>;
+
 export const VoteSchema = z.object({
   voterHash: VoterHashSchema,
   faction: FactionSchema,
@@ -139,6 +157,7 @@ export const QuestCommandSchema = z.discriminatedUnion("type", [
     sourceChannelId: z.string().min(1),
     targetChannelId: z.string().min(1),
     viewers: z.number().int().nonnegative().nullable(),
+    source: EventSourceSchema.optional(),
   }),
   z.object({ type: z.literal("ACCEPT_HANDOFF") }),
   z.object({ type: z.literal("DISMISS_HANDOFF") }),

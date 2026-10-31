@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "demo": "pnpm --filter @raid-relay/server demo",
+    "demo": "node --import tsx/esm server/src/demo.ts",
     "twitch:auth": "node --import tsx/esm scripts/twitch-auth.ts",
     "twitch:smoke": "node --import tsx/esm scripts/twitch-smoke.ts"
   },
