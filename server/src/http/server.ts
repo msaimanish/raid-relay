@@ -18,6 +18,7 @@ import {
   QuestRepository,
   type StoredQuestEvent,
 } from "../store/quest-repository.js";
+import { TwitchRuntime, type TwitchHealth } from "../twitch/runtime.js";
 
 export interface RelayServerConfig {
   port: number;
@@ -32,6 +33,10 @@ export interface RelayServerConfig {
   demoVoteWindowSeconds?: number;
   demoMode: boolean;
   rateLimitMax?: number;
+  twitchClientId?: string;
+  twitchClientSecret?: string;
+  twitchTokenFile?: string;
+  voterHashSalt?: string;
 }
 
 export function loadServerConfig(
@@ -57,6 +62,12 @@ export function loadServerConfig(
     demoVoteWindowSeconds: positiveSeconds("DEMO_VOTE_WINDOW_SECONDS", 6),
     demoMode: env.DEMO_MODE === "true",
     rateLimitMax: positiveSeconds("REST_RATE_LIMIT_MAX", 120),
+    ...(env.TWITCH_CLIENT_ID ? { twitchClientId: env.TWITCH_CLIENT_ID } : {}),
+    ...(env.TWITCH_CLIENT_SECRET
+      ? { twitchClientSecret: env.TWITCH_CLIENT_SECRET }
+      : {}),
+    twitchTokenFile: env.TWITCH_TOKEN_FILE ?? "./.data/twitch-tokens.json",
+    voterHashSalt: env.VOTER_HASH_SALT ?? "change-me",
   };
 }
 
@@ -145,15 +156,19 @@ function createSnapshot(
   channelId: string,
   role: "overlay" | "dashboard",
   config: RelayServerConfig,
+  twitchHealth: TwitchHealth,
 ) {
   const state = repository.findLatestQuestByChannel(channelId);
-  if (!state)
-    return {
+  if (!state) {
+    const emptySnapshot: Record<string, unknown> = {
       channelId,
       state: null,
       simulated: false,
       demoMode: config.demoMode,
     };
+    if (role === "dashboard") emptySnapshot.twitch = { ...twitchHealth };
+    return emptySnapshot;
+  }
   const visibleState =
     role === "overlay" ? { ...state, pendingName: null } : state;
   const events = repository.events(state.id);
@@ -174,11 +189,7 @@ function createSnapshot(
   if (role === "dashboard") {
     snapshot.candidates = repository.rankNameProposals(state.id);
     snapshot.chainEvents = events;
-    snapshot.twitch = {
-      status: "not_connected",
-      lastChatAt: null,
-      lastRaidAt: null,
-    };
+    snapshot.twitch = { ...twitchHealth };
   }
   return snapshot;
 }
@@ -208,6 +219,20 @@ export async function createRelayServer(
   const repository = new QuestRepository(database);
   const channels = config.channels;
   const bus = new RelayEventBus(repository, channels);
+  const twitch = new TwitchRuntime(
+    {
+      enabled: Boolean(config.twitchClientId && config.twitchClientSecret),
+      ...(config.twitchClientId ? { clientId: config.twitchClientId } : {}),
+      ...(config.twitchClientSecret
+        ? { clientSecret: config.twitchClientSecret }
+        : {}),
+      tokenFile: config.twitchTokenFile ?? "./.data/twitch-tokens.json",
+      channels,
+      voterHashSalt: config.voterHashSalt ?? "change-me",
+    },
+    bus,
+    repository,
+  );
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
     trustProxy: false,
@@ -295,7 +320,11 @@ export async function createRelayServer(
     });
   });
 
-  app.get("/healthz", async () => ({ ok: true, channels: channels.length }));
+  app.get("/healthz", async () => ({
+    ok: true,
+    channels: channels.length,
+    twitch: { ...twitch.health },
+  }));
 
   app.get<{ Params: { channel: string } }>(
     "/api/overlay/:channel",
@@ -309,7 +338,13 @@ export async function createRelayServer(
         return reply.code(401).send({ error: "unauthorized" });
       if (!channels.includes(channel))
         return reply.code(404).send({ error: "unknown_channel" });
-      return createSnapshot(repository, channel, "overlay", config);
+      return createSnapshot(
+        repository,
+        channel,
+        "overlay",
+        config,
+        twitch.health,
+      );
     },
   );
 
@@ -556,7 +591,13 @@ export async function createRelayServer(
       if (attempt.count > 30 || openForIp >= 8) return socket.destroy();
       webSockets.handleUpgrade(request, socket, head, (webSocket) => {
         clients.set(webSocket, { channelId, role, last: "", ip });
-        const data = createSnapshot(repository, channelId, role, config);
+        const data = createSnapshot(
+          repository,
+          channelId,
+          role,
+          config,
+          twitch.health,
+        );
         const serialized = JSON.stringify(data);
         clients.set(webSocket, { channelId, role, last: serialized, ip });
         sendJson(webSocket, { type: "snapshot", data });
@@ -574,6 +615,7 @@ export async function createRelayServer(
         client.channelId,
         client.role,
         config,
+        twitch.health,
       );
       const serialized = JSON.stringify(data);
       if (serialized !== client.last) {
@@ -664,6 +706,8 @@ export async function createRelayServer(
   }, 250);
   scheduler.unref();
 
+  await twitch.start();
+
   return {
     app,
     repository,
@@ -671,6 +715,7 @@ export async function createRelayServer(
     async close() {
       clearInterval(broadcast);
       clearInterval(scheduler);
+      twitch.stop();
       for (const socket of clients.keys()) socket.close();
       await app.close();
       webSockets.close();

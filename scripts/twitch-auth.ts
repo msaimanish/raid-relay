@@ -52,9 +52,23 @@ if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) {
         throw new Error(
           `Twitch token exchange failed (${tokenResponse.status})`,
         );
-      const token = (await tokenResponse.json()) as Record<string, unknown>;
+      const token = (await tokenResponse.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+        scope?: string[];
+      };
+      if (!token.access_token || !token.refresh_token || !token.expires_in)
+        throw new Error("Twitch returned an incomplete token response.");
+      const savedToken = {
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresIn: token.expires_in,
+        obtainmentTimestamp: Date.now(),
+        scope: token.scope ?? scopes,
+      };
       await mkdir(dirname(tokenFile), { recursive: true });
-      await writeFile(tokenFile, JSON.stringify(token, null, 2), {
+      await writeFile(tokenFile, JSON.stringify(savedToken, null, 2), {
         mode: 0o600,
       });
       const accountHash = createHash("sha256")

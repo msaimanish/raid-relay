@@ -259,6 +259,42 @@ export class QuestRepository {
     })();
   }
 
+  runIdempotentWithin<T>(
+    key: string,
+    createdAt: number,
+    windowMs: number,
+    operation: () => T,
+  ): { duplicate: boolean; result: T } {
+    if (!Number.isSafeInteger(windowMs) || windowMs < 1)
+      throw new RangeError("Idempotency window must be a positive integer.");
+    if (!key || key.length > 256 || !Number.isSafeInteger(createdAt))
+      throw new RangeError("Idempotency key and time are invalid.");
+    return this.database.transaction(() => {
+      const previous = this.database
+        .prepare(
+          "SELECT result_json, created_at FROM idempotency_keys WHERE key = ?",
+        )
+        .get(key) as { result_json: string; created_at: number } | undefined;
+      if (previous && createdAt - previous.created_at < windowMs) {
+        return {
+          duplicate: true,
+          result: JSON.parse(previous.result_json) as T,
+        };
+      }
+      if (previous)
+        this.database
+          .prepare("DELETE FROM idempotency_keys WHERE key = ?")
+          .run(key);
+      const result = operation();
+      this.database
+        .prepare(
+          "INSERT INTO idempotency_keys (key, result_json, created_at) VALUES (?, ?, ?)",
+        )
+        .run(key, JSON.stringify(result), createdAt);
+      return { duplicate: false, result };
+    })();
+  }
+
   findAwaitingRaidBySource(sourceChannelId: string): QuestState | null {
     const row = this.database
       .prepare(

@@ -32,6 +32,9 @@ describe("HTTP and realtime server", () => {
   });
 
   it("protects dashboard actions and returns a safe overlay snapshot", async () => {
+    const health = await relay.app.inject({ method: "GET", url: "/healthz" });
+    expect(health.json().twitch.status).toBe("disabled");
+
     const denied = await relay.app.inject({
       method: "POST",
       url: "/api/quests",

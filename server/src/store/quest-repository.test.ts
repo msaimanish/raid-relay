@@ -117,6 +117,33 @@ describe("SQLite quest persistence", () => {
     });
     expect(operations).toBe(1);
     expect(repository.events("cohort-q")).toHaveLength(1);
+    let raidWindowOperations = 0;
+    const raidWindowOperation = () => ++raidWindowOperations;
+    expect(
+      repository.runIdempotentWithin(
+        "raid:source:target:42",
+        10_000,
+        120_000,
+        raidWindowOperation,
+      ),
+    ).toEqual({ duplicate: false, result: 1 });
+    expect(
+      repository.runIdempotentWithin(
+        "raid:source:target:42",
+        129_999,
+        120_000,
+        raidWindowOperation,
+      ),
+    ).toEqual({ duplicate: true, result: 1 });
+    expect(
+      repository.runIdempotentWithin(
+        "raid:source:target:42",
+        130_000,
+        120_000,
+        raidWindowOperation,
+      ),
+    ).toEqual({ duplicate: false, result: 2 });
+    expect(raidWindowOperations).toBe(2);
     database.close();
   });
 });
