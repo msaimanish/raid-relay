@@ -1,5 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
+import type { Duplex } from "node:stream";
 import { dirname, resolve } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -21,6 +22,7 @@ import {
 import { TwitchRuntime, type TwitchHealth } from "../twitch/runtime.js";
 import { NemotronRecapProvider } from "../recap/provider.js";
 import { RecapService } from "../recap/service.js";
+import { resolveProjectPath } from "../config/project-paths.js";
 
 export interface RelayServerConfig {
   port: number;
@@ -56,7 +58,9 @@ export function loadServerConfig(
   return {
     port: positiveSeconds("PORT", 3000),
     publicBaseUrl: env.PUBLIC_BASE_URL ?? "http://localhost:3000",
-    databasePath: env.DATABASE_PATH ?? "./.data/raid-relay.db",
+    databasePath: resolveProjectPath(
+      env.DATABASE_PATH ?? "./.data/raid-relay.db",
+    ),
     dashboardToken: env.DASHBOARD_TOKEN ?? "change-me",
     overlayKey: env.OVERLAY_KEY ?? "change-me",
     channels: (env.CHANNELS ?? "channel_a_login,channel_b_login")
@@ -73,7 +77,9 @@ export function loadServerConfig(
     ...(env.TWITCH_CLIENT_SECRET
       ? { twitchClientSecret: env.TWITCH_CLIENT_SECRET }
       : {}),
-    twitchTokenFile: env.TWITCH_TOKEN_FILE ?? "./.data/twitch-tokens.json",
+    twitchTokenFile: resolveProjectPath(
+      env.TWITCH_TOKEN_FILE ?? "./.data/twitch-tokens.json",
+    ),
     voterHashSalt: env.VOTER_HASH_SALT ?? "change-me",
     aiEnabled: env.AI_ENABLED === "true",
     ...(env.NVIDIA_API_KEY ? { nvidiaApiKey: env.NVIDIA_API_KEY } : {}),
@@ -213,6 +219,17 @@ function createSnapshot(
 
 function sendJson(socket: WebSocket, value: unknown): void {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+}
+
+function rejectWebSocketUpgrade(
+  socket: Duplex,
+  status: 400 | 401 | 404 | 429,
+  reason: string,
+): void {
+  const body = `${reason}\n`;
+  socket.end(
+    `HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
+  );
 }
 
 export interface RelayServer {
@@ -600,7 +617,8 @@ export async function createRelayServer(
         request.url ?? "/",
         `http://${request.headers.host ?? "localhost"}`,
       );
-      if (url.pathname !== "/ws") return socket.destroy();
+      if (url.pathname !== "/ws")
+        return rejectWebSocketUpgrade(socket, 404, "Not Found");
       const channelId = url.searchParams.get("channel")?.toLowerCase() ?? "";
       const role = url.searchParams.get("role");
       const key = url.searchParams.get("key") ?? "";
@@ -608,10 +626,11 @@ export async function createRelayServer(
         !channels.includes(channelId) ||
         (role !== "overlay" && role !== "dashboard")
       )
-        return socket.destroy();
+        return rejectWebSocketUpgrade(socket, 404, "Not Found");
       const expected =
         role === "dashboard" ? config.dashboardToken : config.overlayKey;
-      if (!constantTimeEqual(key, expected)) return socket.destroy();
+      if (!constantTimeEqual(key, expected))
+        return rejectWebSocketUpgrade(socket, 401, "Unauthorized");
       const ip = request.socket.remoteAddress ?? "unknown";
       const now = Date.now();
       const previous = wsAttempts.get(ip);
@@ -623,7 +642,8 @@ export async function createRelayServer(
       const openForIp = [...clients.values()].filter(
         (client) => client.ip === ip,
       ).length;
-      if (attempt.count > 30 || openForIp >= 8) return socket.destroy();
+      if (attempt.count > 30 || openForIp >= 8)
+        return rejectWebSocketUpgrade(socket, 429, "Too Many Requests");
       webSockets.handleUpgrade(request, socket, head, (webSocket) => {
         clients.set(webSocket, { channelId, role, last: "", ip });
         const data = createSnapshot(
@@ -640,7 +660,7 @@ export async function createRelayServer(
         webSocket.on("close", () => clients.delete(webSocket));
       });
     } catch {
-      socket.destroy();
+      rejectWebSocketUpgrade(socket, 400, "Bad Request");
     }
   });
 

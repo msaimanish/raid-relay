@@ -1,6 +1,9 @@
-import "dotenv/config";
+import { config as loadDotEnv } from "dotenv";
+import { resolve } from "node:path";
+import { projectRootFromCwd } from "./config/project-paths.js";
 import { createRelayServer, loadServerConfig } from "./http/server.js";
 
+loadDotEnv({ path: resolve(projectRootFromCwd(), ".env") });
 const config = loadServerConfig();
 const relay = await createRelayServer(config);
 

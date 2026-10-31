@@ -55,3 +55,9 @@
 - Tests added: mocked NVIDIA success with structured output and reasoning separated; malformed JSON, unsafe URLs/mentions, extra numbers, 429/500, timeout, template fallback, immediate recap cache and per-raid reuse; existing chain API privacy test remains in the suite.
 - Decisions: use `nvidia/nemotron-3.5-bolt-e4b` as configurable default, `enable_thinking: false`, and Node `fetch` to avoid adding an SDK. The deterministic template remains the fallback for every provider or validation failure.
 - Verification: strict typecheck, ESLint, Prettier, server TypeScript build, Vite production build, and all 73 tests across 15 files passed. NVIDIA requests were mocked; no live key/API call was made.
+
+## Dev server follow-up — Root environment and WebSocket rejection
+
+- Diagnosed the reported Vite `socket hang up`: `pnpm dev` runs the server with `server/` as its current directory, while `dotenv/config` searched only there. The repository `.env` was at the root and `server/.env` was absent, so the backend used default channel/auth settings. Configured database and Twitch token paths were also relative to the wrong directory.
+- Changed server startup to load the root `.env` and resolve relative data/token paths from the project root. Invalid WebSocket upgrades now receive explicit HTTP 401/404/429 responses rather than being silently destroyed. README warns against including placeholder angle brackets in URL values.
+- Verified the running backend reports Twitch `connected` at `/healthz`; an intentionally invalid dashboard key through Vite received HTTP 401. Strict typecheck, lint, formatting, server build, `git diff --check`, and all 76 tests across 16 files passed.

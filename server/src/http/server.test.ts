@@ -96,6 +96,33 @@ describe("HTTP and realtime server", () => {
     expect(third.statusCode).toBe(429);
   });
 
+  it("returns an HTTP 401 for an invalid WebSocket dashboard key", async () => {
+    await relay.app.listen({ port: 0, host: "127.0.0.1" });
+    const address = relay.app.server.address();
+    if (!address || typeof address === "string")
+      throw new Error("Server did not bind a TCP port.");
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${address.port}/ws?channel=channel-a&role=dashboard&key=wrong`,
+    );
+    const statusCode = await new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("WebSocket rejection timed out")),
+        2_000,
+      );
+      socket.once("unexpected-response", (_request, response) => {
+        clearTimeout(timeout);
+        response.resume();
+        resolve(response.statusCode ?? 0);
+      });
+      socket.once("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+    expect(statusCode).toBe(401);
+    socket.terminate();
+  });
+
   it("sends an initial WebSocket snapshot and an update after a quest starts", async () => {
     await relay.app.listen({ port: 0, host: "127.0.0.1" });
     const address = relay.app.server.address();
