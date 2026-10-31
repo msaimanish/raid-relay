@@ -1,24 +1,37 @@
-# Demo video shot list
+# Demo video script
 
-Target length: about 2:40, under the three-minute limit in the project brief.
+Target length: 2:50, leaving a buffer under the three-minute limit.
 
-| Time      | Shot           | What to show / say                                                                                                                                |
-| --------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0:00–0:15 | Hook           | “A raid brings people into a new chat without the story. Raid Relay gives both communities a decision to make right away.”                        |
-| 0:15–0:30 | Setup          | Show the source-channel dashboard beside the overlay preview. Say the following run is simulated.                                                 |
-| 0:30–0:45 | Start          | Click **Run full demo**. Show the naming prompt and proposal count; note proposals remain private until streamer approval.                        |
-| 0:45–1:05 | First beat     | Show the approved canon name and the protect/claim vote with faction labels and counts.                                                           |
-| 1:05–1:30 | Raid welcome   | Show the target-channel overlay welcome, source channel, simulated party size of 37 (medium tier), recap, and `!join` instruction.                |
-| 1:30–1:55 | Community vote | Show Incoming party and Locals tallies and the equal-faction rule. Explain that `!join` is an observed cohort signal, not proof of raid identity. |
-| 1:55–2:15 | Outcome        | Show the deterministic beat-two result, state changes, and SIMULATED badge.                                                                       |
-| 2:15–2:35 | Story chain    | Open the quest detail and list pages. Point out the persisted public decisions, party count, and outcome.                                         |
-| 2:35–2:40 | Close          | “The demo is simulated. Live Twitch EventSub and NVIDIA inference are still being verified.”                                                      |
+## Before recording
 
-## Recording checklist
+- Start `pnpm dev` and keep the server running.
+- Open the **msaimanish dashboard**. This is the source-channel control room; use its **Run full demo** button.
+- Open the **krishnatejabommipati dashboard** in another tab and click **open preview** at the bottom. This is the receiving channel in the demo, so its preview is the viewer-facing overlay to feature during the raid welcome and outcome.
+- Arrange the dashboard and preview side by side for the opening. During the welcome and ending, make the preview the large/main view. Briefly bring the dashboard back to show **Recap source: ai** and the vote counts.
+- Ensure the dashboard has no active quest, or a completed quest, so **Run full demo** is available. Click **Run full demo** once; do not click **Start another quest** first.
+- The demo's raid, 37-viewer party size, and chat inputs are simulated. Keep the **SIMULATED** label visible and describe them as simulated. The recap can be AI-generated; confirm the dashboard says **Recap source: ai** during the run.
+- Keep browser address bars, dashboard tokens, overlay keys, `.env`, and Twitch credentials out of the recording. Increase `WELCOME_HOLD_SECONDS` before recording if the AI recap disappears before it can be shown.
 
-- Set `DEMO_MODE=true`, confirm both configured channels have no active quests, and restart `pnpm dev`.
-- Open the source dashboard and target overlay in separate windows. The overlay route is the OBS-facing view.
-- Use the dashboard button for the visual walkthrough; `pnpm demo` is the standalone terminal run and does not open the web pages.
-- Use a fresh demo run and show its SIMULATED badge. Do not imply the sample 37 viewers came from Twitch.
-- Make browser zoom and text readable in the recording; keep dashboard/overlay keys out of frame.
-- End on the public chain page. Do not show `.env`, `.data/twitch-tokens.json`, raw account IDs, or credentials.
+## Timed script
+
+Timecodes refer to the edited video. Capture a full demo run, then trim or hold on the important screens because the scripted flow advances quickly.
+
+| Time      | Screen and actions                                                                                                                                       | Narration                                                                                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0:00–0:15 | Split screen: **msaimanish dashboard** on one side and **krishnatejabommipati preview** on the other.                                                    | “A raid can bring a community into an unfamiliar chat. Raid Relay gives those viewers quick context and a shared story to shape.”                                                  |
+| 0:15–0:30 | Keep both visible. Point out the dashboard controls and the viewer-facing preview.                                                                       | “The streamer controls the quest from the dashboard. Viewers see the story on the receiving channel’s overlay. This walkthrough uses the krishnatejabommipati preview.”            |
+| 0:30–0:40 | On the **msaimanish dashboard**, click **Run full demo** once. Keep the **SIMULATED** badge visible in the preview.                                      | “I’m starting the repeatable demo. The raid, viewer count, and chat inputs are scripted, and the app labels them as simulated.”                                                    |
+| 0:40–0:58 | Show the naming events, then the approved canon name **Ember Fox**.                                                                                      | “Chat proposes a name for the relic. The streamer reviews the selection before it becomes part of the story. Here, the approved name is Ember Fox.”                                |
+| 0:58–1:13 | Show the first beat and its protect/claim decision in the dashboard event log or story chain.                                                            | “The first decision is whether to protect or claim the relic. The game engine records the vote and advances the story.”                                                            |
+| 1:13–1:38 | Make the **krishnatejabommipati preview** the main view during the welcome. Briefly keep the dashboard visible or cut back to show **Recap source: ai**. | “After the simulated raid, the receiving channel gets a welcome and a recap. This recap was generated by NVIDIA AI from story facts. The raid and vote inputs here are simulated.” |
+| 1:38–1:55 | Show the Beat 2 vote; briefly show the dashboard’s separate **Incoming party** and **Locals** tallies.                                                   | “The two communities decide how the party faces the troll: fight, trade, or sneak. Their votes are counted separately, then combined using a fixed rule.”                          |
+| 1:55–2:12 | Return to the large receiving-channel preview for the story outcome. Keep the **SIMULATED** badge visible.                                               | “Fight wins in this run. The deterministic game rules choose the outcome; AI does not choose the winning action or control the game.”                                              |
+| 2:12–2:35 | Click **Full story ↗** in the preview, or **Story chain** below the dashboard, and show the public chain detail.                                         | “The public story chain records the handoff, party size, decisions, and ending, so viewers can follow the story afterward.”                                                        |
+| 2:35–2:50 | Show the Codex project thread or code briefly, then end on the receiving-channel preview.                                                                | “I used Codex to build the Twitch integration, game engine, dashboard, overlay, and story chain. Raid Relay turns a raid into an invitation to join a story.”                      |
+
+## Recording notes
+
+- Keep **krishnatejabommipati’s preview** as the primary audience view for the raid welcome, AI recap, and Beat 2 outcome.
+- Use **msaimanish’s dashboard** to click **Run full demo** and to show **Recap source: ai** and faction tallies.
+- Do not type `!join` or `!vote` during **Run full demo**; it supplies scripted inputs. If demonstrating real Twitch chat instead, clearly distinguish that from the simulated raid run.
+- The public Devpost video must be under three minutes. Do not imply the sample 37 viewers came from a real raid.
