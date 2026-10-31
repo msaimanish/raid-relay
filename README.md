@@ -2,7 +2,7 @@
 
 Raid Relay turns the first minute after a Twitch raid into a shared story and vote. Raiders receive a short recap, join the incoming party, and help the destination channel decide what happens next.
 
-> The deterministic engine, naming flow, SQLite persistence, raid handoff, Fastify API, WebSocket updates, overlay, and dashboard are implemented. Live Twitch adapters and the NVIDIA recap are later phases.
+> The deterministic engine, naming flow, SQLite persistence, raid handoff, Twitch EventSub adapters, Fastify API, WebSocket updates, overlay, dashboard, recap fallback, optional NVIDIA recap, and public story chain are implemented. Live Twitch delivery and NVIDIA inference still require authorized credentials and verification.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Fill in `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and `CHANNELS` in `.env`. Register the exact `TWITCH_REDIRECT_URI` in the Twitch developer console. Then authorize and start the EventSub smoke listener:
+Fill in `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and `CHANNELS` in `.env`. Register the exact `TWITCH_REDIRECT_URI` in the Twitch developer console. Authorize each configured broadcaster separately by running `pnpm twitch:auth` once while signed into each broadcaster account; the script stores all accounts in `.data/twitch-tokens.json`. Then run the EventSub smoke listener:
 
 ```sh
 pnpm twitch:auth
@@ -44,9 +44,11 @@ The dashboard controls quests and the overlay receives an initial snapshot plus 
 
 The development server uses `PUBLIC_BASE_URL` for allowed API CORS origins. Vite proxies API and WebSocket requests to the local server. The interactive demo pauses at naming review, votes, raid welcome, beat-two voting, and the outcome so each card has time to appear; its short vote window is configurable with `DEMO_VOTE_WINDOW_SECONDS`.
 
+Recaps use the deterministic two-sentence template by default. To opt into NVIDIA, set `AI_ENABLED=true`, provide `NVIDIA_API_KEY`, and set `AI_MODEL` (the example uses `nvidia/nemotron-3.5-bolt-e4b`). The server sends quest facts only; validated provider failures keep the template recap.
+
 ## Project status
 
-Phases 0–4 provide the deterministic engine, SQLite persistence, naming moderation, raid-handoff event path, local HTTP/WebSocket app, overlay, dashboard, and a read-only persisted story timeline. Real Twitch chat/raid delivery is not integrated yet; connection health remains `not_connected` until Phase 5. See [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/CODEX_LOG.md](docs/CODEX_LOG.md).
+Phases 0–6 provide the deterministic engine, SQLite persistence, naming moderation, raid handoff, live EventSub adapters, local HTTP/WebSocket app, overlay, dashboard, recap provider, and a read-only persisted story timeline. Live Twitch and NVIDIA calls still need authorized end-to-end verification. See [docs/TWITCH_NOTES.md](docs/TWITCH_NOTES.md), [docs/DECISIONS.md](docs/DECISIONS.md), and [docs/CODEX_LOG.md](docs/CODEX_LOG.md).
 
 Run the current scripted A-to-B scenario with:
 

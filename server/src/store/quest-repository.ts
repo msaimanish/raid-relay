@@ -24,6 +24,21 @@ export interface StoredQuestEvent extends EngineEvent {
 export class QuestRepository {
   constructor(private readonly database: RelayDatabase) {}
 
+  setChannelDisplayName(channelId: string, displayName: string): void {
+    const normalized = displayName.trim().slice(0, 128);
+    if (!normalized) return;
+    this.database
+      .prepare("UPDATE channels SET display_name = ? WHERE id = ?")
+      .run(normalized, channelId);
+  }
+
+  channelDisplayName(channelId: string): string | null {
+    const row = this.database
+      .prepare("SELECT display_name FROM channels WHERE id = ?")
+      .get(channelId) as { display_name: string } | undefined;
+    return row?.display_name ?? null;
+  }
+
   save(stateInput: QuestState, events: readonly EngineEvent[] = []): void {
     const state = QuestStateSchema.parse(stateInput);
     const saveTransaction = this.database.transaction(() => {

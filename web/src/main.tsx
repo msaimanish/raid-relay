@@ -35,6 +35,7 @@ type Snapshot = {
     lastChatAt: number | null;
     lastRaidAt: number | null;
   };
+  recap?: { text: string; recap_source: "ai" | "fallback" };
   publicBaseUrl?: string;
 };
 
@@ -134,9 +135,11 @@ function Overlay() {
   const choices =
     beat === 1 ? ["protect", "claim"] : ["fight", "trade", "sneak"];
   const totalVotes = tallies?.votes ?? 0;
-  const recap = state?.lastVoteResolution?.choice
-    ? `The last group chose ${state.lastVoteResolution.choice}. ${state.canonName ?? "The Ember Fox"} is now part of the story.`
-    : `${state?.objective ?? "Carry the Ember Relic to the end of the road."} Your vote helps decide what happens next.`;
+  const recap =
+    snapshot?.recap?.text ??
+    (state?.lastVoteResolution?.choice
+      ? `The last group chose ${state.lastVoteResolution.choice}. ${state.canonName ?? "The Ember Fox"} is now part of the story.`
+      : `${state?.objective ?? "Carry the Ember Relic to the end of the road."} Your vote helps decide what happens next.`);
   return (
     <main className="overlay-shell">
       <header className="overlay-top">
@@ -618,6 +621,9 @@ function Dashboard() {
               ? new Date(snapshot.twitch.lastRaidAt).toLocaleTimeString()
               : "—"}
           </p>
+          {snapshot?.recap && (
+            <p>Recap source: {snapshot.recap.recap_source}</p>
+          )}
           {snapshot?.simulated && <span className="simulated">SIMULATED</span>}
           <div className="event-tail">
             <span className="eyebrow">EVENT LOG</span>
@@ -701,7 +707,8 @@ function ChainPage({ questId }: { questId?: string }) {
               <span>{String(item.title)}</span>
               <b>{String(item.canonName ?? "Name pending")}</b>
               <small>
-                {String(item.status)} · {String(item.channelId)}
+                {String(item.status)} · {String(item.channelId)} · Updated{" "}
+                {new Date(Number(item.updatedAt)).toLocaleString()}
               </small>
             </a>
           ))}
@@ -709,9 +716,20 @@ function ChainPage({ questId }: { questId?: string }) {
       ) : (
         <>
           {questId && (
-            <p className="chain-objective">
-              {String(data?.objective ?? "Recorded from persisted events.")}
-            </p>
+            <>
+              <p className="chain-objective">
+                {String(data?.objective ?? "Recorded from persisted events.")}
+              </p>
+              {data?.canonName && (
+                <p className="chain-objective">
+                  Canon: {String(data.canonName)} · Party size:{" "}
+                  {data.partySize === null
+                    ? "unavailable"
+                    : String(data.partySize)}{" "}
+                  · {String(data.partyTier ?? "tier pending")}
+                </p>
+              )}
+            </>
           )}
           <div className="timeline">
             {items.map((event) => (

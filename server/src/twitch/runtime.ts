@@ -166,6 +166,7 @@ export class TwitchRuntime {
           throw new Error(
             `Configured Twitch channel could not be resolved: ${login}`,
           );
+        this.repository.setChannelDisplayName(login, user.displayName);
         if (!auth.hasUser(user.id))
           throw new Error(
             `No Twitch user token is loaded for channel ${login}.`,

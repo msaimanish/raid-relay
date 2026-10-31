@@ -19,6 +19,8 @@ import {
   type StoredQuestEvent,
 } from "../store/quest-repository.js";
 import { TwitchRuntime, type TwitchHealth } from "../twitch/runtime.js";
+import { NemotronRecapProvider } from "../recap/provider.js";
+import { RecapService } from "../recap/service.js";
 
 export interface RelayServerConfig {
   port: number;
@@ -37,6 +39,11 @@ export interface RelayServerConfig {
   twitchClientSecret?: string;
   twitchTokenFile?: string;
   voterHashSalt?: string;
+  aiEnabled?: boolean;
+  nvidiaApiKey?: string;
+  aiBaseUrl?: string;
+  aiModel?: string;
+  aiTimeoutMs?: number;
 }
 
 export function loadServerConfig(
@@ -68,6 +75,11 @@ export function loadServerConfig(
       : {}),
     twitchTokenFile: env.TWITCH_TOKEN_FILE ?? "./.data/twitch-tokens.json",
     voterHashSalt: env.VOTER_HASH_SALT ?? "change-me",
+    aiEnabled: env.AI_ENABLED === "true",
+    ...(env.NVIDIA_API_KEY ? { nvidiaApiKey: env.NVIDIA_API_KEY } : {}),
+    aiBaseUrl: env.AI_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
+    aiModel: env.AI_MODEL?.trim() || "nvidia/nemotron-3.5-bolt-e4b",
+    aiTimeoutMs: positiveSeconds("AI_TIMEOUT_MS", 8000),
   };
 }
 
@@ -157,6 +169,7 @@ function createSnapshot(
   role: "overlay" | "dashboard",
   config: RelayServerConfig,
   twitchHealth: TwitchHealth,
+  recapService: RecapService,
 ) {
   const state = repository.findLatestQuestByChannel(channelId);
   if (!state) {
@@ -186,6 +199,10 @@ function createSnapshot(
     publicBaseUrl: config.publicBaseUrl,
     demoMode: config.demoMode,
   };
+  if (state.sourceChannelId !== null) {
+    const recap = recapService.get(state.id, state);
+    snapshot.recap = { text: recap.text, recap_source: recap.source };
+  }
   if (role === "dashboard") {
     snapshot.candidates = repository.rankNameProposals(state.id);
     snapshot.chainEvents = events;
@@ -218,7 +235,19 @@ export async function createRelayServer(
   const database = suppliedDatabase ?? openDatabase(config.databasePath);
   const repository = new QuestRepository(database);
   const channels = config.channels;
-  const bus = new RelayEventBus(repository, channels);
+  const recapProvider =
+    config.aiEnabled && config.nvidiaApiKey && config.aiModel
+      ? new NemotronRecapProvider(
+          config.nvidiaApiKey,
+          config.aiBaseUrl ?? "https://integrate.api.nvidia.com/v1",
+          config.aiModel,
+          config.aiTimeoutMs ?? 8000,
+        )
+      : undefined;
+  const recapService = new RecapService(repository, recapProvider);
+  const bus = new RelayEventBus(repository, channels, (raid, questId) => {
+    recapService.onRaid(questId, raid.eventId);
+  });
   const twitch = new TwitchRuntime(
     {
       enabled: Boolean(config.twitchClientId && config.twitchClientSecret),
@@ -344,6 +373,7 @@ export async function createRelayServer(
         "overlay",
         config,
         twitch.health,
+        recapService,
       );
     },
   );
@@ -376,7 +406,12 @@ export async function createRelayServer(
       title: state.title,
       status: state.status,
       channelId: state.currentChannelId,
+      sourceChannelId: state.sourceChannelId,
+      targetChannelId: state.targetChannelId,
+      partySize: state.partySize,
+      partyTier: state.partyTier,
       canonName: state.canonName,
+      outcome: state.outcome,
       updatedAt: state.updatedAt,
     })),
   );
@@ -597,6 +632,7 @@ export async function createRelayServer(
           role,
           config,
           twitch.health,
+          recapService,
         );
         const serialized = JSON.stringify(data);
         clients.set(webSocket, { channelId, role, last: serialized, ip });
@@ -616,6 +652,7 @@ export async function createRelayServer(
         client.role,
         config,
         twitch.health,
+        recapService,
       );
       const serialized = JSON.stringify(data);
       if (serialized !== client.last) {

@@ -45,6 +45,28 @@ function makeAwaitingRaid(questId = "quest-1") {
 const hash = (name: string) => name.repeat(64);
 
 describe("raid and chat event bus", () => {
+  it("notifies the recap hook once for a matched raid", () => {
+    const context = makeAwaitingRaid("recap-hook-q");
+    const observed: Array<{ eventId: string; questId: string }> = [];
+    const bus = new RelayEventBus(
+      context.repository,
+      [context.sourceChannelId, context.targetChannelId],
+      (raid, questId) => observed.push({ eventId: raid.eventId, questId }),
+    );
+    const raid = {
+      eventId: "recap-hook-raid",
+      sourceChannelId: context.sourceChannelId,
+      targetChannelId: context.targetChannelId,
+      viewers: 37,
+      source: "twitch" as const,
+    };
+    bus.dispatch({ type: "raid.received", raid }, 12);
+    bus.dispatch({ type: "raid.received", raid }, 13);
+    expect(observed).toEqual([
+      { eventId: raid.eventId, questId: context.questId },
+    ]);
+  });
+
   it("is idempotent, preserves null raid size, and classifies source and joined participants", () => {
     const context = makeAwaitingRaid();
     context.bus.dispatch(

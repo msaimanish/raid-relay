@@ -5,6 +5,7 @@ import {
   type ChatMessageInput,
   type EngineEvent,
   type QuestCommand,
+  type RaidEvent,
 } from "../../../shared/src/index.js";
 import { reduceQuest } from "../engine/quest.js";
 import {
@@ -73,6 +74,7 @@ export class RelayEventBus {
   constructor(
     private readonly repository: QuestRepository,
     configuredChannelIds: readonly string[],
+    private readonly onMatchedRaid?: (raid: RaidEvent, questId: string) => void,
   ) {
     this.channels = new Set(configuredChannelIds);
   }
@@ -83,8 +85,14 @@ export class RelayEventBus {
         return this.dispatchQuestCommand(input.questId, input.command, now);
       case "chat.message":
         return this.dispatchChat(input.message, now);
-      case "raid.received":
-        return this.dispatchRaid(input.raid, now);
+      case "raid.received": {
+        const raid = RaidEventSchema.parse(input.raid);
+        const result = this.dispatchRaid(raid, now);
+        if (!result.duplicate && result.matched && result.questId) {
+          this.onMatchedRaid?.(raid, result.questId);
+        }
+        return result;
+      }
       case "name.review": {
         const state = this.requireQuest(input.questId);
         return submitNextNameForReview(

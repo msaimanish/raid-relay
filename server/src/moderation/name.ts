@@ -29,6 +29,36 @@ export function normalizeCandidateName(raw: string): NameCandidate {
   return { displayName, normalizedName: displayName.toLowerCase() };
 }
 
+export function containsBlockedTerm(
+  text: string,
+  blockedTerms: readonly string[] = BLOCKED_TERMS,
+): boolean {
+  const words = new Set(
+    text
+      .normalize("NFKC")
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u),
+  );
+  return blockedTerms.some((term) => {
+    const normalizedTerm = term
+      .normalize("NFKC")
+      .replace(FORMAT_CHARACTERS, "")
+      .toLowerCase();
+    return normalizedTerm.length > 0 && words.has(normalizedTerm);
+  });
+}
+
+/** Shared public-text checks for model output that may contain sentence punctuation. */
+export function isSafePublicText(text: string): boolean {
+  const normalized = text.normalize("NFKC");
+  return (
+    !URL_LIKE.test(normalized) &&
+    !MENTION.test(normalized) &&
+    !/[\p{Cc}\p{Cf}\u202A-\u202E\u2066-\u2069]/u.test(normalized) &&
+    !containsBlockedTerm(normalized)
+  );
+}
+
 export function moderateCandidateName(
   raw: string,
   blockedTerms: readonly string[] = BLOCKED_TERMS,
@@ -44,15 +74,8 @@ export function moderateCandidateName(
     return { allowed: false, reason: "mention" };
   if (Array.from(candidate.displayName).length > 24)
     return { allowed: false, reason: "too_long" };
-  const words = new Set(candidate.normalizedName.split(/[^\p{L}\p{N}]+/u));
-  const blocked = blockedTerms.some((term) => {
-    const normalizedTerm = term
-      .normalize("NFKC")
-      .replace(FORMAT_CHARACTERS, "")
-      .toLowerCase();
-    return normalizedTerm.length > 0 && words.has(normalizedTerm);
-  });
-  if (blocked) return { allowed: false, reason: "blocked_term" };
+  if (containsBlockedTerm(candidate.normalizedName, blockedTerms))
+    return { allowed: false, reason: "blocked_term" };
   if (!NAME_CHARACTERS.test(candidate.displayName))
     return { allowed: false, reason: "invalid_characters" };
   return { allowed: true, candidate };
