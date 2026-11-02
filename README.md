@@ -39,7 +39,6 @@ Open the stream-facing overlay for either channel using **Open preview** in the 
 
 ```text
 http://localhost:5173/overlay/channel_a_login?key=YOUR_OVERLAY_KEY
-http://localhost:5173/overlay/channel_b_login?key=YOUR_OVERLAY_KEY
 ```
 
 The overlay is the view to inspect or add to OBS as a Browser Source; the dashboard is for streamer controls. After a run, `/chain` lists persisted stories and `/chain/<quest-id>` shows one story. The interactive demo takes about 25–30 seconds with the example welcome and vote timings. It labels scripted inputs **SIMULATED** and does not connect to Twitch.
